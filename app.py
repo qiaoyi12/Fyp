@@ -28,6 +28,10 @@ def register():
     data = request.json
     return jsonify({"msg": "register route"})
 
+@app.route('/api/profile/<username>')
+def profile(username):
+    return f"{username}'s Page"
+
 
 @app.route('/api/upload', methods=['POST'])
 def upload():
