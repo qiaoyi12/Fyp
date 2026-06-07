@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block full_page %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login — Intrusion Detection System</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+</head>
+<body>
+<div class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">Intrusion Detection System</div>
+    <div class="login-title">Sign in</div>
+    <div class="login-sub">AI-Powered Security Monitoring · v1.0</div>
+
+    <form method="POST" action="/login">
+
+      <label class="login-label">Access Role</label>
+      <div class="login-roles">
+        <div class="login-role-btn {% if not request.form.get('role') or request.form.get('role') == 'analyst' %}selected{% endif %}"
+             onclick="selectRole('analyst')" id="btn-analyst">
+          SOC Analyst
+        </div>
+        <div class="login-role-btn {% if request.form.get('role') == 'admin' %}selected{% endif %}"
+             onclick="selectRole('admin')" id="btn-admin">
+          IT Administrator
+        </div>
+      </div>
+      <input type="hidden" name="role" id="role-input"
+             value="{{ request.form.get('role', 'analyst') }}"/>
+
+      <label class="login-label">Username</label>
+      <input
+        class="login-field"
+        type="text"
+        name="username"
+        placeholder="Enter username"
+        value="{{ request.form.get('username', '') }}"
+        autocomplete="off"
+      />
+
+      <label class="login-label">Password</label>
+      <input
+        class="login-field"
+        type="password"
+        name="password"
+        placeholder="Enter password"
+      />
+
+      {% if error %}
+      <div class="login-error">{{ error }}</div>
+      {% endif %}
+
+      <button type="submit" class="login-btn">AUTHENTICATE</button>
+
+    </form>
+
+    <div style="text-align:center;margin-top:16px;font-size:9px;color:#142030;font-family:'JetBrains Mono',monospace;">
+      Secured · AES-256 · Session Encrypted
+    </div>
+  </div>
+</div>
+
+<script>
+  function selectRole(role) {
+    document.getElementById('role-input').value = role
+    document.getElementById('btn-analyst').classList.toggle('selected', role === 'analyst')
+    document.getElementById('btn-admin').classList.toggle('selected', role === 'admin')
+  }
+</script>
+</body>
+</html>
+{% endblock %}

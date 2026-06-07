@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — IDS{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block status_text %}System Operational{% endblock %}
+
+{% block content %}
+
+<!-- METRIC CARDS -->
+<div class="metric-grid-4">
+  <div class="metric-card">
+    <div class="m-label">Logs Processed</div>
+    <div class="m-value">{{ metrics.logs_processed }}</div>
+    <div class="m-sub up">+1,204 today</div>
+  </div>
+  <div class="metric-card high">
+    <div class="m-label">High Severity</div>
+    <div class="m-value red">{{ metrics.high_count }}</div>
+    <div class="m-sub down">+3 last hour</div>
+  </div>
+  <div class="metric-card medium">
+    <div class="m-label">Medium Severity</div>
+    <div class="m-value amber">{{ metrics.medium_count }}</div>
+    <div class="m-sub up">−2 last hour</div>
+  </div>
+  <div class="metric-card low">
+    <div class="m-label">Low / Resolved</div>
+    <div class="m-value green">{{ metrics.low_count }}</div>
+    <div class="m-sub up">all resolved</div>
+  </div>
+</div>
+
+<!-- RECENT HIGH SEVERITY ALERTS -->
+<div class="sec-title">Recent High-Severity Alerts</div>
+{% for alert in high_alerts %}
+<a href="/alerts/{{ alert.id }}" class="alert-row">
+  <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
+  <div class="a-desc">{{ alert.description }}</div>
+  <div class="a-src">{{ alert.source }}</div>
+  <div class="a-time">{{ alert.time }}</div>
+</a>
+{% endfor %}
+
+<!-- BOTTOM GRID — PIE CHART + SYSTEM HEALTH -->
+<div class="bottom-grid">
+
+  <!-- THREAT DISTRIBUTION PIE CHART -->
+  <div class="chart-card">
+    <div class="chart-title">Threat Distribution by Type</div>
+    <div class="pie-wrap">
+      <svg width="130" height="130" viewBox="0 0 130 130">
+        <circle cx="65" cy="65" r="52" fill="none" stroke="#0e1a2a" stroke-width="22"/>
+        {% set ns = namespace(offset=0) %}
+        {% for item in threat_distribution %}
+        {% set dasharray = (item.pct / 100) * 326.7 %}
+        <circle cx="65" cy="65" r="52" fill="none"
+          stroke="{{ item.colour }}" stroke-width="22"
+          stroke-dasharray="{{ dasharray }} {{ 326.7 - dasharray }}"
+          stroke-dashoffset="{{ -ns.offset }}"
+          transform="rotate(-90 65 65)"/>
+        {% set ns.offset = ns.offset + dasharray %}
+        {% endfor %}
+        <text x="65" y="60" text-anchor="middle" fill="#c8dff0"
+          font-family="JetBrains Mono" font-size="14" font-weight="600">172</text>
+        <text x="65" y="75" text-anchor="middle" fill="#2a4a6a"
+          font-family="JetBrains Mono" font-size="8">Total</text>
+      </svg>
+      <div class="pie-legend">
+        {% for item in threat_distribution %}
+        <div class="pie-legend-item">
+          <div class="pie-legend-dot" style="background:{{ item.colour }}"></div>
+          <div class="pie-legend-label">{{ item.type }}</div>
+          <div class="pie-legend-pct" style="color:{{ item.colour }}">{{ item.pct }}%</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- SYSTEM HEALTH -->
+  <div class="chart-card">
+    <div class="chart-title">System Health</div>
+    <div class="metric-grid-3">
+      <div class="metric-card">
+        <div class="m-label">Model Accuracy</div>
+        <div class="m-value blue" style="font-size:18px">{{ metrics.model_accuracy }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">Response Time</div>
+        <div class="m-value blue" style="font-size:18px">{{ metrics.response_time }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">System Uptime</div>
+        <div class="m-value green" style="font-size:18px">{{ metrics.uptime }}</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

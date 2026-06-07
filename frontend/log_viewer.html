@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Log Viewer — IDS{% endblock %}
+{% block page_title %}Log Viewer{% endblock %}
+{% block status_text %}System Operational{% endblock %}
+
+{% block content %}
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <input
+    class="search-input"
+    type="text"
+    id="search-input"
+    placeholder="Search by IP address, keyword, event type..."
+    value="{{ search }}"
+    onkeyup="filterLogs()"
+  />
+  <a href="/logs" class="f-btn {% if filter_type == 'all' %}active{% endif %}">All Entries</a>
+  <a href="/logs?filter=flagged" class="f-btn high {% if filter_type == 'flagged' %}active{% endif %}">Flagged</a>
+  <a href="/logs?filter=normal" class="f-btn {% if filter_type == 'normal' %}active{% endif %}">Normal</a>
+</div>
+
+<!-- LOG TABLE -->
+<div style="overflow-x:auto">
+  <table class="log-table">
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Source IP</th>
+        <th>Destination</th>
+        <th>Event Type</th>
+        <th>Protocol</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="log-body">
+      {% for log in logs %}
+      <tr class="{% if log.flagged %}flagged{% endif %}"
+          data-src="{{ log.source }}" data-type="{{ log.type }}">
+        <td>{{ log.timestamp }}</td>
+        <td class="{% if log.severity == 'high' %}td-high{% elif log.severity == 'medium' %}td-medium{% endif %}">
+          {{ log.source }}
+        </td>
+        <td>{{ log.destination }}</td>
+        <td>{{ log.type }}</td>
+        <td>{{ log.protocol }}</td>
+        <td>
+          <span class="sev-badge sev-{{ log.severity }}">
+            {{ log.severity.upper() }}
+          </span>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="color:#2A4A6A;padding:20px 12px;font-family:'JetBrains Mono',monospace;">
+          No log entries found.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="table-footer">
+  Showing {{ logs|length }} of 48,291 entries
+  · {{ logs|selectattr('flagged')|list|length }} flagged visible
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function filterLogs() {
+    const search = document.getElementById('search-input').value.toLowerCase()
+    const rows = document.querySelectorAll('#log-body tr[data-src]')
+    rows.forEach(row => {
+      const src  = row.dataset.src.toLowerCase()
+      const type = row.dataset.type.toLowerCase()
+      row.style.display = (src.includes(search) || type.includes(search)) ? '' : 'none'
+    })
+  }
+</script>
+{% endblock %}
