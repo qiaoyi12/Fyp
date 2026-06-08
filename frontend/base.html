@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{% block title %}Intrusion Detection System{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <link rel="stylesheet" href="/frontend/CSS/styles.css"/>
 </head>
 <body>
 
@@ -21,18 +21,18 @@
     <div class="sb-nav">
       <div class="sb-section">Main</div>
 
-      <a href="/dashboard" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+      <a href="/frontend/dashboard.html" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
         <div class="nav-dot"></div>
         Dashboard
       </a>
 
-      <a href="/alerts" class="nav-item {% if active_page == 'alerts' %}active{% endif %}">
+      <a href="/frontend/alert_feed.html" class="nav-item {% if active_page == 'alerts' %}active{% endif %}">
         <div class="nav-dot"></div>
         Alert Feed
         <span class="nav-badge">{{ high_alert_count | default(7) }}</span>
       </a>
 
-      <a href="/logs" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
+      <a href="/frontend/log_viewer.html" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
         <div class="nav-dot"></div>
         Log Viewer
       </a>
@@ -40,12 +40,12 @@
       {% if role == 'admin' %}
       <div class="sb-section" style="margin-top:10px">Admin</div>
 
-      <a href="/upload" class="nav-item {% if active_page == 'upload' %}active{% endif %}">
+      <a href="/frontend/upload.html" class="nav-item {% if active_page == 'upload' %}active{% endif %}">
         <div class="nav-dot"></div>
         Upload & Input
       </a>
 
-      <a href="/metrics" class="nav-item {% if active_page == 'metrics' %}active{% endif %}">
+      <a href="/frontend/model_metrics.html" class="nav-item {% if active_page == 'metrics' %}active{% endif %}">
         <div class="nav-dot"></div>
         Model Metrics
       </a>
