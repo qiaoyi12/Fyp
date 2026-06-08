@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register — Intrusion Detection System</title>
+  <link rel="stylesheet" href="/frontend/CSS/styles.css"/>
+</head>
+<body>
+<div class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">Intrusion Detection System</div>
+    <div class="login-title">Create Account</div>
+    <div class="login-sub">AI-Powered Security Monitoring · v1.0</div>
+
+    <form method="POST" action="/register">
+
+      <label class="login-label">Access Role</label>
+      <div class="login-roles">
+        <div class="login-role-btn selected" onclick="selectRole('analyst')" id="btn-analyst">
+          SOC Analyst
+        </div>
+        <div class="login-role-btn" onclick="selectRole('admin')" id="btn-admin">
+          IT Administrator
+        </div>
+      </div>
+      <input type="hidden" name="role" id="role-input" value="analyst"/>
+
+      <label class="login-label">Username</label>
+      <input
+        class="login-field"
+        type="text"
+        name="username"
+        placeholder="Choose a username"
+        value="{{ request.form.get('username', '') }}"
+        autocomplete="off"
+      />
+
+      <label class="login-label">Email</label>
+      <input
+        class="login-field"
+        type="email"
+        name="email"
+        placeholder="Enter your email"
+        value="{{ request.form.get('email', '') }}"
+        autocomplete="off"
+      />
+
+      <label class="login-label">Password</label>
+      <input
+        class="login-field"
+        type="password"
+        name="password"
+        placeholder="Create a password"
+      />
+
+      <label class="login-label">Confirm Password</label>
+      <input
+        class="login-field"
+        type="password"
+        name="confirm_password"
+        placeholder="Repeat your password"
+      />
+
+      {% if error %}
+      <div class="login-error">{{ error }}</div>
+      {% endif %}
+
+      {% if success %}
+      <div style="color:#1DB954;font-size:10px;font-family:'JetBrains Mono',monospace;margin-bottom:10px;">
+        ✓ {{ success }}
+      </div>
+      {% endif %}
+
+      <button type="submit" class="login-btn">CREATE ACCOUNT</button>
+
+    </form>
+
+    <div style="text-align:center;margin-top:12px;font-size:9px;color:#3D8EFF;font-family:'JetBrains Mono',monospace;">
+      <a href="/login" style="color:#3D8EFF;text-decoration:none;">← Back to Sign In</a>
+    </div>
+
+    <div style="text-align:center;margin-top:10px;font-size:9px;color:#142030;font-family:'JetBrains Mono',monospace;">
+      Secured · AES-256 · Session Encrypted
+    </div>
+  </div>
+</div>
+
+<script>
+  function selectRole(role) {
+    document.getElementById('role-input').value = role
+    document.getElementById('btn-analyst').classList.toggle('selected', role === 'analyst')
+    document.getElementById('btn-admin').classList.toggle('selected', role === 'admin')
+  }
+</script>
+</body>
+</html>

@@ -1,10 +1,48 @@
-# backend/src/routes/pages.py
+# flask routes for web pages
 import os
 from flask import Blueprint, render_template, request, session, redirect, url_for
 from functools import wraps
 from backend.src.database.models import UploadedFile
+from backend.src.database.models import User
+from backend.src.database.db import db, bcrypt
 
 pages_bp = Blueprint('pages', __name__)
+
+@pages_bp.route('/register', methods=['GET', 'POST'])
+def register():
+    error = None
+    success = None
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email    = request.form.get('email')
+        password = request.form.get('password')
+        confirm  = request.form.get('confirm_password')
+        role     = request.form.get('role', 'SOC Analyst')
+
+        if not username or not email or not password:
+            error = 'All fields are required.'
+
+        elif password != confirm:
+            error = 'Passwords do not match.'
+
+        elif User.query.filter_by(username=username).first():
+            error = 'Username already exists.'
+
+        elif User.query.filter_by(email=email).first():
+            error = 'Email already registered.'
+
+        else:
+            user = User(username=username, email=email, role=role)
+            user.set_password(password)
+
+            db.session.add(user)
+            db.session.commit()
+
+            success = f'Account created for {username}. You can now log in.'
+
+    return render_template('register.html', error=error, success=success)
+
 
 def login_required(f):
     @wraps(f)
@@ -37,16 +75,18 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         role     = request.form.get('role')
-        valid_users = {
-            'analyst': {'password': 'analyst123', 'role': 'analyst'},
-            'admin':   {'password': 'admin123',   'role': 'admin'},
-        }
-        user = valid_users.get(username)
-        if user and user['password'] == password and user['role'] == role:
-            session['user'] = username
-            session['role'] = role
+
+        user = User.query.filter_by(username=username).first()
+        if not user or not user.check_password (password):
+            error = 'Invalid username or password.'
+        elif user.role != role:
+            error = f'This account is not registered as {role}.'
+        else:
+            session['user']    = user.username
+            session['role']    = user.role
+            session['user_id'] = user.id
             return redirect(url_for('pages.dashboard'))
-        error = 'Invalid username, password or role.'
+
     return render_template('login.html', error=error)
 
 @pages_bp.route('/logout')
