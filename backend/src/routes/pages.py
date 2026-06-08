@@ -2,6 +2,7 @@
 import os
 from flask import Blueprint, render_template, request, session, redirect, url_for
 from functools import wraps
+from backend.src.database.models import UploadedFile
 
 pages_bp = Blueprint('pages', __name__)
 
@@ -127,26 +128,30 @@ def log_viewer():
         role=session['role']
     )
 
+from backend.src.routes.upload import save_upload
+
 @pages_bp.route('/upload', methods=['GET', 'POST'])
 @admin_required
 def upload():
     message = error = None
+
     if request.method == 'POST':
-        if 'file' not in request.files:
-            error = 'No file selected.'
+        result = save_upload(request.files, user_id=1)  # temp user_id
+        if result['success']:
+            message = result['message']
         else:
-            file = request.files['file']
-            allowed = {'csv', 'log', 'json', 'pcap'}
-            ext = file.filename.rsplit('.', 1)[-1].lower()
-            if ext not in allowed:
-                error = f'Unsupported format: .{ext}'
-            else:
-                message = f'{file.filename} uploaded and queued for processing.'
+            error = result['error']
+
+    uploads = UploadedFile.query.order_by(UploadedFile.uploaded_at.desc()).limit(10).all()
     history = [
-        {'name': 'network_logs_apr27.csv', 'status': 'success', 'detail': 'Processed · 12,440 entries'},
-        {'name': 'auth_logs_apr26.log',    'status': 'success', 'detail': 'Processed · 8,112 entries'},
-        {'name': 'firewall_dump.exe',       'status': 'error',   'detail': 'Failed · Unsupported format'},
+        {
+            'name': u.filename,
+            'status': 'success' if u.is_valid else 'error',
+            'detail': f'Processed · {u.row_count} rows'
+        }
+        for u in uploads
     ]
+
     return render_template('upload.html',
         message=message, error=error,
         history=history,

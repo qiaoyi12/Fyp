@@ -67,6 +67,7 @@ from backend.src.routes.upload import upload_bp
 from backend.src.routes.analysis import analysis_bp
 from backend.src.routes.pages import pages_bp
 
+
 load_dotenv()
 
 app = Flask(
