@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {% extends "base.html" %}
 
 {% block full_page %}
@@ -74,3 +75,177 @@
 </body>
 </html>
 {% endblock %}
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI IDS — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f4; color: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .wrap { width: 100%; max-width: 420px; padding: 1rem; }
+    .logo { text-align: center; margin-bottom: 2rem; }
+    .logo-icon { width: 52px; height: 52px; background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; font-size: 24px; }
+    .logo h1 { font-size: 18px; font-weight: 600; }
+    .logo p { font-size: 13px; color: #666; margin-top: 4px; }
+    .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; }
+    .tabs { display: flex; border-bottom: 1px solid #e5e5e5; margin-bottom: 1.5rem; }
+    .tab { flex: 1; padding: 8px; font-size: 14px; background: none; border: none; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+    .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; font-weight: 500; }
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
+    .field input { width: 100%; padding: 9px 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; outline: none; transition: border .15s; }
+    .field input:focus { border-color: #1a1a1a; }
+    .btn { width: 100%; padding: 10px; font-size: 14px; font-weight: 500; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin-top: 0.5rem; transition: opacity .15s; }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .msg { margin-top: 1rem; padding: 10px 12px; border-radius: 8px; font-size: 13px; display: none; }
+    .msg.success { background: #f0fdf4; color: #166534; display: block; }
+    .msg.error { background: #fef2f2; color: #991b1b; display: block; }
+    .user-card { background: #f9f9f8; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1rem 1.25rem; margin-top: 1.5rem; display: none; }
+    .user-card.show { display: block; }
+    .uc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: #dbeafe; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #1e40af; flex-shrink: 0; }
+    .uc-name { font-size: 15px; font-weight: 500; }
+    .uc-email { font-size: 13px; color: #666; }
+    .token-box { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 8px 10px; margin-top: 12px; }
+    .token-label { font-size: 11px; color: #999; margin-bottom: 4px; }
+    .token-val { font-family: monospace; font-size: 11px; color: #555; word-break: break-all; line-height: 1.5; }
+    .logout-btn { margin-top: 12px; width: 100%; padding: 8px; font-size: 13px; background: none; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; color: #555; transition: background .15s; }
+    .logout-btn:hover { background: #f5f5f4; }
+    .note { text-align: center; font-size: 12px; color: #aaa; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-icon">🛡️</div>
+    <h1>AI IDS System</h1>
+    <p>Temporary test UI — replace with React frontend</p>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('login', this)">Login</button>
+      <button class="tab" onclick="switchTab('register', this)">Register</button>
+    </div>
+
+    <!-- Login -->
+    <div id="loginForm">
+      <div class="field"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input type="password" id="loginPassword" placeholder="••••••••"></div>
+      <button class="btn" id="loginBtn" onclick="doLogin()">Login</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+
+    <!-- Register -->
+    <div id="registerForm" style="display:none">
+      <div class="field"><label>Username</label><input type="text" id="regUsername" placeholder="johndoe"></div>
+      <div class="field"><label>Email</label><input type="email" id="regEmail" placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input type="password" id="regPassword" placeholder="min 6 characters"></div>
+      <button class="btn" id="regBtn" onclick="doRegister()">Create account</button>
+      <div class="msg" id="regMsg"></div>
+    </div>
+  </div>
+
+  <!-- Logged in user card -->
+  <div class="user-card" id="userCard">
+    <div class="uc-header">
+      <div class="avatar" id="avatarInitials">?</div>
+      <div>
+        <div class="uc-name" id="ucName">—</div>
+        <div class="uc-email" id="ucEmail">—</div>
+      </div>
+    </div>
+    <div class="token-box">
+      <div class="token-label">JWT token (copy for Postman testing)</div>
+      <div class="token-val" id="tokenVal">—</div>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">Logout</button>
+  </div>
+
+  <p class="note">Flask backend must be running on port 5000</p>
+</div>
+
+<script>
+  const BASE = 'http://127.0.0.1:5000/api';
+
+  function switchTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+    document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+  }
+
+  function showMsg(id, type, text) {
+    const el = document.getElementById(id);
+    el.className = 'msg ' + type;
+    el.textContent = text;
+  }
+
+  function setLoading(btnId, loading, label) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.textContent = loading ? 'Loading...' : label;
+  }
+
+  async function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) { showMsg('loginMsg', 'error', 'Please fill in all fields'); return; }
+    setLoading('loginBtn', true, 'Login');
+    try {
+      const res = await fetch(BASE + '/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg('loginMsg', 'error', data.error || 'Login failed'); return; }
+      showMsg('loginMsg', 'success', 'Logged in successfully!');
+      showLoggedIn(data.user, data.access_token);
+    } catch (e) {
+      showMsg('loginMsg', 'error', 'Cannot reach server — is Flask running on port 5000?');
+    } finally { setLoading('loginBtn', false, 'Login'); }
+  }
+
+  async function doRegister() {
+    const username = document.getElementById('regUsername').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    if (!username || !email || !password) { showMsg('regMsg', 'error', 'Please fill in all fields'); return; }
+    setLoading('regBtn', true, 'Create account');
+    try {
+      const res = await fetch(BASE + '/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg('regMsg', 'error', data.error || 'Registration failed'); return; }
+      showMsg('regMsg', 'success', 'Account created! Switch to the Login tab.');
+    } catch (e) {
+      showMsg('regMsg', 'error', 'Cannot reach server — is Flask running on port 5000?');
+    } finally { setLoading('regBtn', false, 'Create account'); }
+  }
+
+  function showLoggedIn(user, token) {
+    document.getElementById('avatarInitials').textContent = user.username.slice(0, 2).toUpperCase();
+    document.getElementById('ucName').textContent = user.username;
+    document.getElementById('ucEmail').textContent = user.email;
+    document.getElementById('tokenVal').textContent = token;
+    document.getElementById('userCard').classList.add('show');
+  }
+
+  function doLogout() {
+    document.getElementById('userCard').classList.remove('show');
+    document.getElementById('loginEmail').value = '';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginMsg').className = 'msg';
+  }
+</script>
+</body>
+</html>
+>>>>>>> backend
