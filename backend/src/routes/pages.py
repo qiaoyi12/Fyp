@@ -94,34 +94,127 @@ def logout():
     session.clear()
     return redirect(url_for('pages.login'))
 
+@pages_bp.route('/analyse/<int:file_id>', methods=['POST'])
+@admin_required
+def analyse_file(file_id):
+    from backend.src.database.models import UploadedFile, AnalysisResult
+    from backend.src.database.db import db
+    from backend.src.ml.preprocess import preprocess_csv
+    from backend.src.ml.predict import predict, get_summary
+
+    upload = UploadedFile.query.filter_by(id=file_id).first()
+    if not upload:
+        return redirect(url_for('pages.upload'))
+
+    X, error = preprocess_csv(upload.filepath)
+    if error:
+        return redirect(url_for('pages.upload'))
+
+    results = predict(X)
+    summary = get_summary(results)
+         # DEBUG — remove after testing
+    print("=== ANALYSIS DEBUG ===")
+    print("Total rows:", len(results))
+    print("Summary:", summary)
+    print("First 5 predictions:", results[:5])
+    print("======================")
+
+    # Save to DB
+    record = AnalysisResult(
+        file_id      = file_id,
+        total_rows   = len(results),
+        high_count   = summary['by_severity']['high'],
+        medium_count = summary['by_severity']['medium'],
+        normal_count = summary['by_severity']['normal'],
+        benign       = summary['by_label']['BENIGN'],
+        web_attack   = summary['by_label']['Web Attack'],
+        dos          = summary['by_label']['DoS'],
+        ddos         = summary['by_label']['DDoS'],
+        portscan     = summary['by_label']['PortScan'],
+        bot          = summary['by_label']['Bot/Patator'],
+        rare         = summary['by_label']['Rare/Others'],
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    return redirect(url_for('pages.dashboard'))
+
 @pages_bp.route('/dashboard')
 @login_required
 def dashboard():
-    metrics = {
-        'logs_processed': '48,291',
-        'high_count': 7,
-        'medium_count': 23,
-        'low_count': 142,
-        'model_accuracy': '96.4%',
-        'response_time': '142ms',
-        'uptime': '99.8%'
-    }
-    alerts = get_alerts_data()
-    high_alerts = [a for a in alerts if a['severity'] == 'high']
-    threat_distribution = [
-        {'type': 'SQL Injection', 'pct': 31, 'colour': '#E74C3C'},
-        {'type': 'Brute Force',   'pct': 24, 'colour': '#F39C12'},
-        {'type': 'Port Scan',     'pct': 20, 'colour': '#3D8EFF'},
-        {'type': 'Malware',       'pct': 15, 'colour': '#A07EFF'},
-        {'type': 'Other',         'pct': 10, 'colour': '#1DB954'},
-    ]
+    from backend.src.database.models import AnalysisResult
+
+    # Get latest analysis result
+    latest = AnalysisResult.query.order_by(AnalysisResult.analysed_at.desc()).first()
+
+    if latest:
+        metrics = {
+            'logs_processed': f'{latest.total_rows:,}',
+            'high_count':     latest.high_count,
+            'medium_count':   latest.medium_count,
+            'low_count':      latest.normal_count,
+            'model_accuracy': '96.4%',
+            'response_time':  '142ms',
+            'uptime':         '99.8%'
+        }
+        threat_distribution = [
+            {'type': 'BENIGN',      'pct': round(latest.benign     / latest.total_rows * 100), 'colour': '#1DB954'},
+            {'type': 'Web Attack',  'pct': round(latest.web_attack / latest.total_rows * 100), 'colour': '#E74C3C'},
+            {'type': 'DoS',         'pct': round(latest.dos        / latest.total_rows * 100), 'colour': '#F39C12'},
+            {'type': 'DDoS',        'pct': round(latest.ddos       / latest.total_rows * 100), 'colour': '#3D8EFF'},
+            {'type': 'PortScan',    'pct': round(latest.portscan   / latest.total_rows * 100), 'colour': '#A07EFF'},
+            {'type': 'Bot/Patator', 'pct': round(latest.bot        / latest.total_rows * 100), 'colour': '#FF6B6B'},
+            {'type': 'Rare/Others', 'pct': round(latest.rare       / latest.total_rows * 100), 'colour': '#FFD93D'},
+        ]
+    else:
+        # No analysis yet — show empty state
+        metrics = {
+            'logs_processed': '0',
+            'high_count':     0,
+            'medium_count':   0,
+            'low_count':      0,
+            'model_accuracy': 'N/A',
+            'response_time':  'N/A',
+            'uptime':         '99.8%'
+        }
+        threat_distribution = []
+
     return render_template('dashboard.html',
         metrics=metrics,
-        high_alerts=high_alerts,
+        high_alerts=get_alerts_data()[:3],
         threat_distribution=threat_distribution,
         user=session['user'],
         role=session['role']
     )
+
+# @pages_bp.route('/dashboard')
+# @login_required
+# def dashboard():
+#     metrics = {
+#         'logs_processed': '48,291',
+#         'high_count': 7,
+#         'medium_count': 23,
+#         'low_count': 142,
+#         'model_accuracy': '96.4%',
+#         'response_time': '142ms',
+#         'uptime': '99.8%'
+#     }
+#     alerts = get_alerts_data()
+#     high_alerts = [a for a in alerts if a['severity'] == 'high']
+#     threat_distribution = [
+#         {'type': 'SQL Injection', 'pct': 31, 'colour': '#E74C3C'},
+#         {'type': 'Brute Force',   'pct': 24, 'colour': '#F39C12'},
+#         {'type': 'Port Scan',     'pct': 20, 'colour': '#3D8EFF'},
+#         {'type': 'Malware',       'pct': 15, 'colour': '#A07EFF'},
+#         {'type': 'Other',         'pct': 10, 'colour': '#1DB954'},
+#     ]
+#     return render_template('dashboard.html',
+#         metrics=metrics,
+#         high_alerts=high_alerts,
+#         threat_distribution=threat_distribution,
+#         user=session['user'],
+#         role=session['role']
+#     )
 
 @pages_bp.route('/alerts')
 @login_required
@@ -185,19 +278,21 @@ def upload():
     uploads = UploadedFile.query.order_by(UploadedFile.uploaded_at.desc()).limit(10).all()
     history = [
         {
+            'id' : u.id,
             'name': u.filename,
             'status': 'success' if u.is_valid else 'error',
             'detail': f'Processed · {u.row_count} rows'
         }
         for u in uploads
     ]
-
+    
     return render_template('upload.html',
         message=message, error=error,
         history=history,
         user=session['user'],
         role=session['role']
     )
+
 
 @pages_bp.route('/metrics')
 @admin_required

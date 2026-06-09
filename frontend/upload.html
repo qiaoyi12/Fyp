@@ -50,6 +50,7 @@
 </form>
 
 <!-- UPLOAD HISTORY -->
+<!-- UPLOAD HISTORY -->
 <div class="sec-title">Upload History</div>
 {% for item in history %}
 <div class="upload-hist-row">
@@ -63,6 +64,16 @@
     color:{% if item.status == 'success' %}#1DB954{% else %}#E74C3C{% endif %}">
     {{ item.detail }}
   </div>
+  {% if item.status == 'success' %}
+  <form method="POST" action="/analyse/{{ item.id }}" style="margin:0">
+    <button type="submit"
+      style="font-size:9px;padding:4px 12px;border-radius:5px;
+             background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
+             color:#3D8EFF;font-family:'JetBrains Mono',monospace;cursor:pointer;">
+      Analyse
+    </button>
+  </form>
+  {% endif %}
 </div>
 {% endfor %}
 

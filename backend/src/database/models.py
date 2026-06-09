@@ -76,3 +76,24 @@ class UploadedFile(db.Model):
             'uploaded_at': self.uploaded_at.isoformat(),
             'user_id':     self.user_id
         }
+
+
+# for uploaded files dashboard
+
+class AnalysisResult(db.Model):
+    __tablename__ = 'analysis_results'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    file_id     = db.Column(db.Integer, db.ForeignKey('uploaded_files.id'), nullable=False)
+    total_rows  = db.Column(db.Integer, default=0)
+    high_count  = db.Column(db.Integer, default=0)
+    medium_count= db.Column(db.Integer, default=0)
+    normal_count= db.Column(db.Integer, default=0)
+    benign      = db.Column(db.Integer, default=0)
+    web_attack  = db.Column(db.Integer, default=0)
+    dos         = db.Column(db.Integer, default=0)
+    ddos        = db.Column(db.Integer, default=0)
+    portscan    = db.Column(db.Integer, default=0)
+    bot         = db.Column(db.Integer, default=0)
+    rare        = db.Column(db.Integer, default=0)
+    analysed_at = db.Column(db.DateTime, default=datetime.utcnow)

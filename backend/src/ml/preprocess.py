@@ -1,8 +1,10 @@
 # to process the csv, clean and format the uploaded CSV to match what the model expects
+
+
 import pandas as pd
 import numpy as np
 
-FEATURES = [
+SELECTED_FEATURES = [
     'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
     'Total Length of Fwd Packets', 'Total Length of Bwd Packets',
     'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std',
@@ -16,9 +18,8 @@ FEATURES = [
 
 def preprocess_csv(filepath):
     """
-    Reads uploaded CSV, strips column names, selects the 24 required
-    features, cleans nulls and infinities.
-    Returns (X, error_message) — X is None if something goes wrong.
+    Reads uploaded CSV, selects 24 features, cleans nulls and infinities.
+    Returns (X, error) — X is None if something goes wrong.
     """
     try:
         df = pd.read_csv(filepath)
@@ -29,14 +30,13 @@ def preprocess_csv(filepath):
     df.columns = df.columns.str.strip()
 
     # Check all required features exist
-    missing = [f for f in FEATURES if f not in df.columns]
+    missing = [f for f in SELECTED_FEATURES if f not in df.columns]
     if missing:
         return None, f'Missing columns: {missing}'
 
-    # Select only the 24 features the model was trained on
-    X = df[FEATURES].copy()
+    X = df[SELECTED_FEATURES].copy()
 
-    # Replace inf values with NaN then fill with 0
+    # Replace inf with NaN then fill with 0
     X.replace([np.inf, -np.inf], np.nan, inplace=True)
     X.fillna(0, inplace=True)
 
