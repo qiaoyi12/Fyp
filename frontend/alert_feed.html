@@ -22,17 +22,38 @@
 </div>
 
 <!-- ALERT ROWS -->
+<!-- ALERT ROWS -->
 <div id="alert-list">
   {% for alert in alerts %}
-  <a href="/alerts/{{ alert.id }}" class="alert-row" data-desc="{{ alert.description }}" data-src="{{ alert.source }}">
-    <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
-    <div class="a-desc">{{ alert.description }}</div>
-    <div class="a-src">{{ alert.source }}</div>
-    <div class="a-time">{{ alert.time }}</div>
+  <a href="/alerts/{{ alert.id }}"
+     class="alert-row"
+     data-prediction="{{ alert.prediction }}"
+     data-severity="{{ alert.severity }}">
+
+    <span class="sev-badge sev-{{ alert.severity }}">
+      {{ alert.severity.upper() }}
+    </span>
+
+    <div class="alert-main">
+      <div class="a-title">
+         {{ alert.prediction }} Detected
+      </div>
+
+      <div class="a-meta">
+        Confidence: {{ alert.confidence }}%
+        &nbsp;•&nbsp;
+
+      </div>
+    </div>
+
+    <div class="a-time">
+      {{ alert.created_at}}
+    </div>
+
   </a>
   {% else %}
-  <div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:20px 0;">
-    No alerts found for this filter.
+  <div class="empty-alerts">
+    No alerts found.
   </div>
   {% endfor %}
 </div>

@@ -12,26 +12,26 @@
 <!-- ALERT HEADER -->
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
   <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
-  <span style="font-size:15px;color:#C8DFF0;font-weight:600">{{ alert.description }}</span>
+  <span style="font-size:15px;color:#C8DFF0;font-weight:600">{{ alert.prediction }} Detected</span>
 </div>
 
 <!-- DETAIL CARDS -->
 <div class="detail-grid">
   <div class="d-card">
     <div class="d-label">Timestamp</div>
-    <div class="d-value">{{ alert.timestamp }}</div>
+    <div class="d-value">{{ alert.time }}</div>
   </div>
   <div class="d-card">
-    <div class="d-label">Source IP</div>
-    <div class="d-value" style="color:#E74C3C">{{ alert.source }}</div>
+    <div class="d-label">Attack Type</div>
+    <div class="d-value" style="color:#E74C3C">{{ alert.prediction }}</div>
   </div>
   <div class="d-card">
-    <div class="d-label">Affected System</div>
-    <div class="d-value">{{ alert.destination }}</div>
+    <div class="d-label">Severity</div>
+    <div class="d-value">{{ alert.severity.upper() }}</div>
   </div>
   <div class="d-card">
-    <div class="d-label">Anomaly Type</div>
-    <div class="d-value">{{ alert.type }}</div>
+    <div class="d-label">Row Index</div>
+    <div class="d-value">{{ alert.row_index }}</div>
   </div>
 </div>
 
@@ -47,13 +47,5 @@
     </span>
   </div>
 </div>
-
-<!-- RAW LOG -->
-<div class="sec-title">Raw Log Entry</div>
-<div class="log-box">{{ alert.raw_log }}</div>
-
-<!-- RECOMMENDED ACTION -->
-<div class="sec-title">Recommended Action</div>
-<div class="action-box">{{ alert.action }}</div>
 
 {% endblock %}

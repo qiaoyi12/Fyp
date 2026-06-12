@@ -22,23 +22,17 @@ def register():
 
         if not username or not email or not password:
             error = 'All fields are required.'
-
         elif password != confirm:
             error = 'Passwords do not match.'
-
         elif User.query.filter_by(username=username).first():
             error = 'Username already exists.'
-
         elif User.query.filter_by(email=email).first():
             error = 'Email already registered.'
-
         else:
             user = User(username=username, email=email, role=role)
             user.set_password(password)
-
             db.session.add(user)
             db.session.commit()
-
             success = f'Account created for {username}. You can now log in.'
 
     return render_template('register.html', error=error, success=success)
@@ -77,7 +71,7 @@ def login():
         role     = request.form.get('role')
 
         user = User.query.filter_by(username=username).first()
-        if not user or not user.check_password (password):
+        if not user or not user.check_password(password):
             error = 'Invalid username or password.'
         elif user.role != role:
             error = f'This account is not registered as {role}.'
@@ -97,7 +91,7 @@ def logout():
 @pages_bp.route('/analyse/<int:file_id>', methods=['POST'])
 @admin_required
 def analyse_file(file_id):
-    from backend.src.database.models import UploadedFile, AnalysisResult
+    from backend.src.database.models import UploadedFile, AnalysisResult, Alert
     from backend.src.database.db import db
     from backend.src.ml.preprocess import preprocess_csv
     from backend.src.ml.predict import predict, get_summary
@@ -112,29 +106,42 @@ def analyse_file(file_id):
 
     results = predict(X)
     summary = get_summary(results)
-         # DEBUG — remove after testing
-    print("=== ANALYSIS DEBUG ===")
-    print("Total rows:", len(results))
-    print("Summary:", summary)
-    print("First 5 predictions:", results[:5])
-    print("======================")
 
-    # Save to DB
+    by_label = summary['by_label']
+    by_sev   = summary['by_severity']
     record = AnalysisResult(
         file_id      = file_id,
+        user_id      = session['user_id'],
         total_rows   = len(results),
-        high_count   = summary['by_severity']['high'],
-        medium_count = summary['by_severity']['medium'],
-        normal_count = summary['by_severity']['normal'],
-        benign       = summary['by_label']['BENIGN'],
-        web_attack   = summary['by_label']['Web Attack'],
-        dos          = summary['by_label']['DoS'],
-        ddos         = summary['by_label']['DDoS'],
-        portscan     = summary['by_label']['PortScan'],
-        bot          = summary['by_label']['Bot/Patator'],
-        rare         = summary['by_label']['Rare/Others'],
+        benign       = by_label['BENIGN'],
+        web_attack   = by_label['Web Attack'],
+        dos          = by_label['DoS'],
+        ddos         = by_label['DDoS'],
+        portscan     = by_label['PortScan'],
+        bot          = by_label['Bot/Patator'],
+        rare         = by_label['Rare/Others'],
+        high_count   = by_sev['high'],
+        medium_count = by_sev['medium'],
+        normal_count = by_sev['normal'],
     )
     db.session.add(record)
+    db.session.commit()
+
+    # Save top 100 high/medium alerts by confidence
+    flagged = [r for r in results if r['severity'] in ('high', 'medium')]
+    flagged_sorted = sorted(flagged, key=lambda x: x['confidence'], reverse=True)[:100]
+
+    for r in flagged_sorted:
+        alert = Alert(
+            analysis_id = record.id,
+            user_id     = session['user_id'],
+            row_index   = r['row'],
+            prediction  = r['prediction'],
+            severity    = r['severity'],
+            confidence  = r['confidence'],
+        )
+        db.session.add(alert)
+
     db.session.commit()
 
     return redirect(url_for('pages.dashboard'))
@@ -144,7 +151,6 @@ def analyse_file(file_id):
 def dashboard():
     from backend.src.database.models import AnalysisResult
 
-    # Get latest analysis result
     latest = AnalysisResult.query.order_by(AnalysisResult.analysed_at.desc()).first()
 
     if latest:
@@ -167,7 +173,6 @@ def dashboard():
             {'type': 'Rare/Others', 'pct': round(latest.rare       / latest.total_rows * 100), 'colour': '#FFD93D'},
         ]
     else:
-        # No analysis yet — show empty state
         metrics = {
             'logs_processed': '0',
             'high_count':     0,
@@ -187,42 +192,17 @@ def dashboard():
         role=session['role']
     )
 
-# @pages_bp.route('/dashboard')
-# @login_required
-# def dashboard():
-#     metrics = {
-#         'logs_processed': '48,291',
-#         'high_count': 7,
-#         'medium_count': 23,
-#         'low_count': 142,
-#         'model_accuracy': '96.4%',
-#         'response_time': '142ms',
-#         'uptime': '99.8%'
-#     }
-#     alerts = get_alerts_data()
-#     high_alerts = [a for a in alerts if a['severity'] == 'high']
-#     threat_distribution = [
-#         {'type': 'SQL Injection', 'pct': 31, 'colour': '#E74C3C'},
-#         {'type': 'Brute Force',   'pct': 24, 'colour': '#F39C12'},
-#         {'type': 'Port Scan',     'pct': 20, 'colour': '#3D8EFF'},
-#         {'type': 'Malware',       'pct': 15, 'colour': '#A07EFF'},
-#         {'type': 'Other',         'pct': 10, 'colour': '#1DB954'},
-#     ]
-#     return render_template('dashboard.html',
-#         metrics=metrics,
-#         high_alerts=high_alerts,
-#         threat_distribution=threat_distribution,
-#         user=session['user'],
-#         role=session['role']
-#     )
-
 @pages_bp.route('/alerts')
 @login_required
 def alert_feed():
-    alerts = get_alerts_data()
+    from backend.src.database.models import Alert
+
     severity = request.args.get('severity', 'all')
+    query = Alert.query.order_by(Alert.created_at.desc())
     if severity != 'all':
-        alerts = [a for a in alerts if a['severity'] == severity]
+        query = query.filter_by(severity=severity)
+    alerts = [a.to_dict() for a in query.limit(100).all()]
+
     return render_template('alert_feed.html',
         alerts=alerts,
         severity=severity,
@@ -233,9 +213,10 @@ def alert_feed():
 @pages_bp.route('/alerts/<int:alert_id>')
 @login_required
 def threat_detail(alert_id):
-    alert = get_alert_detail(alert_id)
+    from backend.src.database.models import Alert
+    alert = Alert.query.get_or_404(alert_id)
     return render_template('threat_detail.html',
-        alert=alert,
+        alert=alert.to_dict(),
         user=session['user'],
         role=session['role']
     )
@@ -269,7 +250,7 @@ def upload():
     message = error = None
 
     if request.method == 'POST':
-        result = save_upload(request.files, user_id=1)  # temp user_id
+        result = save_upload(request.files, user_id=session['user_id'])
         if result['success']:
             message = result['message']
         else:
@@ -278,21 +259,20 @@ def upload():
     uploads = UploadedFile.query.order_by(UploadedFile.uploaded_at.desc()).limit(10).all()
     history = [
         {
-            'id' : u.id,
-            'name': u.filename,
+            'id':     u.id,
+            'name':   u.filename,
             'status': 'success' if u.is_valid else 'error',
             'detail': f'Processed · {u.row_count} rows'
         }
         for u in uploads
     ]
-    
+
     return render_template('upload.html',
         message=message, error=error,
         history=history,
         user=session['user'],
         role=session['role']
     )
-
 
 @pages_bp.route('/metrics')
 @admin_required

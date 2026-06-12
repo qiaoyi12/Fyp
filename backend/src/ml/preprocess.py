@@ -1,6 +1,5 @@
 # to process the csv, clean and format the uploaded CSV to match what the model expects
 
-
 import pandas as pd
 import numpy as np
 
@@ -15,18 +14,15 @@ SELECTED_FEATURES = [
     'Init_Win_bytes_forward', 'Init_Win_bytes_backward'
 ]
 
-
+#     Reads uploaded CSV, selects 24 features, cleans nulls and infinities. Returns (X, error) — X is None if something goes wrong.
 def preprocess_csv(filepath):
-    """
-    Reads uploaded CSV, selects 24 features, cleans nulls and infinities.
-    Returns (X, error) — X is None if something goes wrong.
-    """
+
     try:
         df = pd.read_csv(filepath)
     except Exception as e:
         return None, f'Cannot read CSV: {str(e)}'
 
-    # Strip whitespace from column names (CIC-IDS-2017 quirk)
+    # remove extra whitespace 
     df.columns = df.columns.str.strip()
 
     # Check all required features exist
@@ -36,8 +32,8 @@ def preprocess_csv(filepath):
 
     X = df[SELECTED_FEATURES].copy()
 
-    # Replace inf with NaN then fill with 0
+    # Replace inf with NaN then fill with the median value so that it is more accurate
     X.replace([np.inf, -np.inf], np.nan, inplace=True)
-    X.fillna(0, inplace=True)
+    X.fillna(X.median(), inplace=True)
 
     return X, None

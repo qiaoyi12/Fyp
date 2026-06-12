@@ -1,26 +1,10 @@
 from datetime import datetime
 from .db import db ,bcrypt
 
+# for database tables
 
-# class User(db.Model):
-#     __tablename__ = 'users'
 
-#     id         = db.Column(db.Integer, primary_key=True)
-#     username   = db.Column(db.String(80),  unique=True, nullable=False)
-#     email      = db.Column(db.String(120), unique=True, nullable=False)
-#     password   = db.Column(db.String(255), nullable=False)
-#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-#     # one user can have many uploads
-#     uploads = db.relationship('UploadedFile', backref='owner', lazy=True)
-
-#     def to_dict(self):
-#         return {
-#             'id':         self.id,
-#             'username':   self.username,
-#             'email':      self.email,
-#             'created_at': self.created_at.isoformat()
-#         }
+# user table
 class User(db.Model):
     __tablename__ = 'users'
 
@@ -31,9 +15,8 @@ class User(db.Model):
     # secure password storage
     password_hash = db.Column(db.String(255), nullable=False)
 
-    # roles
+    # roles (to identify whether it is SOC Analyst or It Administrator)
     role       = db.Column(db.String(30), nullable=False, default='SOC Analyst')
-
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # for users to upload more than 1 file
@@ -55,7 +38,7 @@ class User(db.Model):
         }
     
 
-
+# file table
 class UploadedFile(db.Model):
     __tablename__ = 'uploaded_files'
 
@@ -79,12 +62,12 @@ class UploadedFile(db.Model):
 
 
 # for uploaded files dashboard
-
 class AnalysisResult(db.Model):
     __tablename__ = 'analysis_results'
 
     id          = db.Column(db.Integer, primary_key=True)
     file_id     = db.Column(db.Integer, db.ForeignKey('uploaded_files.id'), nullable=False)
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     total_rows  = db.Column(db.Integer, default=0)
     high_count  = db.Column(db.Integer, default=0)
     medium_count= db.Column(db.Integer, default=0)
@@ -97,3 +80,26 @@ class AnalysisResult(db.Model):
     bot         = db.Column(db.Integer, default=0)
     rare        = db.Column(db.Integer, default=0)
     analysed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# for the alerts feed page
+class Alert(db.Model):
+    __tablename__ = 'alerts'
+
+    id             = db.Column(db.Integer, primary_key=True)
+    analysis_id    = db.Column(db.Integer, db.ForeignKey('analysis_results.id'), nullable=False)
+    user_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    row_index      = db.Column(db.Integer)
+    # prediction of attack
+    prediction     = db.Column(db.String(50))
+    severity       = db.Column(db.String(20))
+    confidence     = db.Column(db.Float)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id':         self.id,
+            'prediction': self.prediction,
+            'severity':   self.severity,
+            'confidence': self.confidence,
+            'time':       self.created_at.strftime('%H:%M'),
+        }

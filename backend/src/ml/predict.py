@@ -1,7 +1,5 @@
-# 
-
 import os
-import pickle
+import joblib
 import numpy as np
 
 LABEL_MAP = {
@@ -24,47 +22,58 @@ SEVERITY_MAP = {
     'Rare/Others': 'medium'
 }
 
-# Absolute path to models
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 XGB_PATH     = os.path.join(PROJECT_ROOT, 'dataset', 'zann_dataset', 'xgboost_model.pkl')
-# RF_PATH      = os.path.join(PROJECT_ROOT, 'dataset', 'zann_dataset', 'random_forest_model.pkl')
+RF_PATH = os.path.join(PROJECT_ROOT, 'dataset', 'zann_dataset', 'random_forest_model.pkl')
+SCALER_PATH  = os.path.join(PROJECT_ROOT, 'dataset', 'zann_dataset', 'scaler.pkl')
+
+# to load the ml and scalar model
+xgb_model = joblib.load(XGB_PATH)
+rf_model = joblib.load(RF_PATH)
+scaler     = joblib.load(SCALER_PATH)
 
 
-
-
-# Load once at startup
-with open(XGB_PATH, 'rb') as f:
-    xgb_model = pickle.load(f)
-
-# RF disabled until teammate fixes the pkl
-# rf_model = None
-
-
+# x is noted as preprocess csv file and use xgb model to predict every row
 def predict(X):
-    xgb_proba   = xgb_model.predict_proba(X)
-    predictions = np.argmax(xgb_proba, axis=1)
-    confidence  = np.max(xgb_proba, axis=1)
+    X_scaled = scaler.transform(X)
 
+    # XGBoost predictions
+    xgb_proba   = xgb_model.predict_proba(X_scaled)
+    xgb_preds   = np.argmax(xgb_proba, axis=1)
+    xgb_conf    = np.max(xgb_proba, axis=1)
+
+    # Random Forest predictions
+    rf_proba    = rf_model.predict_proba(X_scaled)
+    rf_preds    = np.argmax(rf_proba, axis=1)
+
+# loop 
     results = []
-    for i, pred in enumerate(predictions):
-        label    = LABEL_MAP[int(pred)]
-        severity = SEVERITY_MAP[label]
+    for i in range(len(xgb_preds)):
+        xgb_label = LABEL_MAP[int(xgb_preds[i])]
+        rf_label  = LABEL_MAP[int(rf_preds[i])]
+
+        # Majority vote if both agree use that, else trust XGBoost
+        if xgb_label == rf_label:
+            final_label = xgb_label
+        else:
+            final_label = xgb_label  # XGB tiebreak
+
+        severity = SEVERITY_MAP[final_label]
+
         results.append({
             'row':        i,
-            'prediction': label,
+            'prediction': final_label,
             'severity':   severity,
-            'confidence': round(float(confidence[i]) * 100, 2),
-            'xgb_vote':   label,
-            'rf_vote':    'N/A (model pending)',
+            'confidence': round(float(xgb_conf[i]) * 100, 2),
+            'xgb_vote':   xgb_label,
+            'rf_vote':    rf_label,
         })
 
     return results
 
 
+# loop to count the numbers for severity and prediction
 def get_summary(results):
-    """
-    Summarises prediction results into counts per label and severity.
-    """
     summary = {label: 0 for label in LABEL_MAP.values()}
     severity_counts = {'normal': 0, 'medium': 0, 'high': 0}
 

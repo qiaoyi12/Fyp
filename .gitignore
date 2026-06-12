@@ -1,9 +1,9 @@
 # Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.Python
+instance/*.db
+*.db
+*.pkl
 
 # Virtual environment
 venv/
