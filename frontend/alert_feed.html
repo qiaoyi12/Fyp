@@ -15,46 +15,52 @@
     placeholder="Search alerts by IP, type, description..."
     onkeyup="filterAlerts()"
   />
-  <a href="/alerts" class="f-btn {% if severity == 'all' %}active{% endif %}">All</a>
-  <a href="/alerts?severity=high" class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
-  <a href="/alerts?severity=medium" class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
-  <a href="/alerts?severity=low" class="f-btn low {% if severity == 'low' %}active{% endif %}">Low</a>
+  <a href="/alerts?severity=high&type={{ attack_type }}" class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
+  <a href="/alerts?severity=medium&type={{ attack_type }}" class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
+  <a href="/alerts?severity=low&type={{ attack_type }}" class="f-btn low {% if severity == 'low' %}active{% endif %}">Low</a>
+
+  <select class="f-btn" id="type-filter" onchange="applyTypeFilter()">
+    <option value="all"         {% if attack_type == 'all' %}selected{% endif %}>All Types</option>
+    <option value="PortScan"    {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
+    <option value="DoS"         {% if attack_type == 'DoS' %}selected{% endif %}>DoS</option>
+    <option value="DDoS"        {% if attack_type == 'DDoS' %}selected{% endif %}>DDoS</option>
+    <option value="Web Attack"  {% if attack_type == 'Web Attack' %}selected{% endif %}>Web Attack</option>
+    <option value="Bot/Patator" {% if attack_type == 'Bot/Patator' %}selected{% endif %}>Bot/Patator</option>
+    <option value="Rare/Others" {% if attack_type == 'Rare/Others' %}selected{% endif %}>Rare/Others</option>
+  </select>
 </div>
 
-<!-- ALERT ROWS -->
-<!-- ALERT ROWS -->
+<!--ALERT rows-->
 <div id="alert-list">
   {% for alert in alerts %}
   <a href="/alerts/{{ alert.id }}"
      class="alert-row"
-     data-prediction="{{ alert.prediction }}"
-     data-severity="{{ alert.severity }}">
+     data-prediction="{{ alert.prediction }}">
 
     <span class="sev-badge sev-{{ alert.severity }}">
       {{ alert.severity.upper() }}
     </span>
 
     <div class="alert-main">
-      <div class="a-title">
-         {{ alert.prediction }} Detected
-      </div>
-
+      <div class="a-title">{{ alert.prediction }} Detected</div>
+      <div class="a-meta">{{ alert.reason }}</div>
       <div class="a-meta">
-        Confidence: {{ alert.confidence }}%
-        &nbsp;•&nbsp;
-
+        XGB: {{ alert.xgb_vote }} &nbsp;·&nbsp; RF: {{ alert.rf_vote }}
+        &nbsp;·&nbsp;
+        <span style="color: {% if alert.consensus == '✓ Consensus' %}#1DB954{% else %}#F39C12{% endif %}">
+          {{ alert.consensus }}
+        </span>
       </div>
     </div>
 
-    <div class="a-time">
-      {{ alert.created_at}}
+    <div class="a-right">
+      <div class="a-conf">{{ alert.confidence }}%</div>
+      <div class="a-time">{{ alert.time }}</div>
     </div>
 
   </a>
   {% else %}
-  <div class="empty-alerts">
-    No alerts found.
-  </div>
+  <div class="empty-alerts">No alerts found.</div>
   {% endfor %}
 </div>
 
@@ -66,13 +72,18 @@
 
 {% block scripts %}
 <script>
+  function applyTypeFilter() {
+    const type = document.getElementById('type-filter').value
+    const severity = '{{ severity }}'
+    window.location.href = `/alerts?severity=${severity}&type=${encodeURIComponent(type)}`
+  }
+
   function filterAlerts() {
     const search = document.getElementById('search-input').value.toLowerCase()
     const rows = document.querySelectorAll('#alert-list .alert-row')
     rows.forEach(row => {
-      const desc = row.dataset.desc.toLowerCase()
-      const src  = row.dataset.src.toLowerCase()
-      row.style.display = (desc.includes(search) || src.includes(search)) ? 'flex' : 'none'
+      const prediction = row.dataset.prediction.toLowerCase()
+      row.style.display = prediction.includes(search) ? 'flex' : 'none'
     })
   }
 </script>

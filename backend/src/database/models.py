@@ -3,7 +3,6 @@ from .db import db ,bcrypt
 
 # for database tables
 
-
 # user table
 class User(db.Model):
     __tablename__ = 'users'
@@ -83,6 +82,8 @@ class AnalysisResult(db.Model):
 
 # for the alerts feed page
 class Alert(db.Model):
+    xgb_vote = db.Column(db.String(50))
+    rf_vote  = db.Column(db.String(50))
     __tablename__ = 'alerts'
 
     id             = db.Column(db.Integer, primary_key=True)
@@ -94,12 +95,34 @@ class Alert(db.Model):
     severity       = db.Column(db.String(20))
     confidence     = db.Column(db.Float)
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    # for packet info feature
+    dest_port      = db.Column(db.Integer)
+    flow_duration  = db.Column(db.Float)
+    flow_pkts_s    = db.Column(db.Float)
 
     def to_dict(self):
+        reason = {
+            'PortScan':    f'Port probing on port {self.dest_port} · {self.flow_pkts_s} pkts/s',
+            'DoS':         f'Flood traffic · {self.flow_pkts_s} pkts/s over {self.flow_duration}ms',
+            'DDoS':        f'Distributed flood · {self.flow_pkts_s} pkts/s',
+            'Web Attack':  f'Malicious payload on port {self.dest_port}',
+            'Bot/Patator': f'Automated attack on port {self.dest_port} · {self.flow_pkts_s} pkts/s',
+            'Rare/Others': f'Anomalous flow on port {self.dest_port}',
+            'BENIGN':      'Normal traffic',
+            'consensus': '✓ Consensus' if self.xgb_vote == self.rf_vote else '⚠ Conflict',
+        }.get(self.prediction, 'Unknown pattern')
+
         return {
-            'id':         self.id,
-            'prediction': self.prediction,
-            'severity':   self.severity,
-            'confidence': self.confidence,
-            'time':       self.created_at.strftime('%H:%M'),
+            'id':          self.id,
+            'prediction':  self.prediction,
+            'severity':    self.severity,
+            'confidence':  self.confidence,
+            'time':        self.created_at.strftime('%H:%M'),
+            'dest_port':   self.dest_port,
+            'flow_pkts_s': self.flow_pkts_s,
+            'reason':      reason,
+            'row_index':   self.row_index,
+            'xgb_vote':    self.xgb_vote,
+            'rf_vote':     self.rf_vote,
+            'consensus':   '✓ Consensus' if self.xgb_vote == self.rf_vote else '⚠ Conflict',
         }

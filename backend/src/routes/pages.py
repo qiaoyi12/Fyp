@@ -2,11 +2,16 @@
 import os
 from flask import Blueprint, render_template, request, session, redirect, url_for
 from functools import wraps
+from backend.src.database.models import AnalysisResult, Alert
 from backend.src.database.models import UploadedFile
 from backend.src.database.models import User
 from backend.src.database.db import db, bcrypt
+from backend.src.ml.preprocess import preprocess_csv
+from backend.src.ml.predict import predict, get_summary
+
 
 pages_bp = Blueprint('pages', __name__)
+
 
 @pages_bp.route('/register', methods=['GET', 'POST'])
 def register():
@@ -91,10 +96,6 @@ def logout():
 @pages_bp.route('/analyse/<int:file_id>', methods=['POST'])
 @admin_required
 def analyse_file(file_id):
-    from backend.src.database.models import UploadedFile, AnalysisResult, Alert
-    from backend.src.database.db import db
-    from backend.src.ml.preprocess import preprocess_csv
-    from backend.src.ml.predict import predict, get_summary
 
     upload = UploadedFile.query.filter_by(id=file_id).first()
     if not upload:
@@ -126,89 +127,112 @@ def analyse_file(file_id):
     )
     db.session.add(record)
     db.session.commit()
+    from collections import defaultdict
 
-    # Save top 100 high/medium alerts by confidence
-    flagged = [r for r in results if r['severity'] in ('high', 'medium')]
-    flagged_sorted = sorted(flagged, key=lambda x: x['confidence'], reverse=True)[:100]
+    by_type = defaultdict(list)
+    for r in results:
+        if r['severity'] in ('high', 'medium'):
+            by_type[r['prediction']].append(r)
 
-    for r in flagged_sorted:
+    selected = []
+    for attack_type, rows in by_type.items():
+        top = sorted(rows, key=lambda x: x['confidence'], reverse=True)[:20]
+        selected.extend(top)
+
+    for r in selected:
+        row_data = X.iloc[r['row']]
         alert = Alert(
-            analysis_id = record.id,
-            user_id     = session['user_id'],
-            row_index   = r['row'],
-            prediction  = r['prediction'],
-            severity    = r['severity'],
-            confidence  = r['confidence'],
+            analysis_id   = record.id,
+            user_id       = session['user_id'],
+            row_index     = r['row'],
+            prediction    = r['prediction'],
+            severity      = r['severity'],
+            confidence    = r['confidence'],
+            xgb_vote      = r['xgb_vote'],
+            rf_vote       = r['rf_vote'],
+            dest_port     = int(row_data['Destination Port']),
+            flow_duration = round(float(row_data['Flow Duration']), 2),
+            flow_pkts_s   = round(float(row_data['Flow Packets/s']), 2),
         )
         db.session.add(alert)
 
     db.session.commit()
-
     return redirect(url_for('pages.dashboard'))
 
 @pages_bp.route('/dashboard')
 @login_required
 def dashboard():
-    from backend.src.database.models import AnalysisResult
+    high_alerts = Alert.query.filter_by(severity='high', user_id=session['user_id']).order_by(Alert.created_at.desc()).limit(3).all()
+    high_alerts = [a.to_dict() for a in high_alerts]
 
-    latest = AnalysisResult.query.order_by(AnalysisResult.analysed_at.desc()).first()
+    latest = AnalysisResult.query.filter_by(user_id=session['user_id']).order_by(AnalysisResult.analysed_at.desc()).first()
 
     if latest:
-        metrics = {
-            'logs_processed': f'{latest.total_rows:,}',
-            'high_count':     latest.high_count,
-            'medium_count':   latest.medium_count,
-            'low_count':      latest.normal_count,
-            'model_accuracy': '96.4%',
-            'response_time':  '142ms',
-            'uptime':         '99.8%'
-        }
         threat_distribution = [
-            {'type': 'BENIGN',      'pct': round(latest.benign     / latest.total_rows * 100), 'colour': '#1DB954'},
-            {'type': 'Web Attack',  'pct': round(latest.web_attack / latest.total_rows * 100), 'colour': '#E74C3C'},
-            {'type': 'DoS',         'pct': round(latest.dos        / latest.total_rows * 100), 'colour': '#F39C12'},
-            {'type': 'DDoS',        'pct': round(latest.ddos       / latest.total_rows * 100), 'colour': '#3D8EFF'},
-            {'type': 'PortScan',    'pct': round(latest.portscan   / latest.total_rows * 100), 'colour': '#A07EFF'},
-            {'type': 'Bot/Patator', 'pct': round(latest.bot        / latest.total_rows * 100), 'colour': '#FF6B6B'},
-            {'type': 'Rare/Others', 'pct': round(latest.rare       / latest.total_rows * 100), 'colour': '#FFD93D'},
+            {'type': 'BENIGN',      'pct': round(latest.benign     / latest.total_rows * 100, 1 ), 'count': latest.benign, 'colour': '#1DB954'},
+            {'type': 'Web Attack',  'pct': round(latest.web_attack / latest.total_rows * 100, 1), 'count': latest.web_attack, 'colour': '#E74C3C'},
+            {'type': 'DoS',         'pct': round(latest.dos        / latest.total_rows * 100, 1), 'count': latest.dos,'colour': '#F39C12'},
+            {'type': 'DDoS',        'pct': round(latest.ddos       / latest.total_rows * 100, 1), 'count': latest.ddos,'colour': '#3D8EFF'},
+            {'type': 'PortScan',    'pct': round(latest.portscan   / latest.total_rows * 100, 1), 'count': latest.portscan,'colour': '#A07EFF'},
+            {'type': 'Bot/Patator', 'pct': round(latest.bot        / latest.total_rows * 100, 1), 'count': latest.bot,'colour': '#FF6B6B'},
+            {'type': 'Rare/Others', 'pct': round(latest.rare       / latest.total_rows * 100, 1), 'count': latest.rare,'colour': '#FFD93D'},
         ]
-    else:
         metrics = {
-            'logs_processed': '0',
-            'high_count':     0,
-            'medium_count':   0,
-            'low_count':      0,
-            'model_accuracy': 'N/A',
-            'response_time':  'N/A',
-            'uptime':         '99.8%'
+            'logs_processed':     f'{latest.total_rows:,}',
+            'high_count':         latest.high_count,
+            'medium_count':       latest.medium_count,
+            'low_count':          latest.normal_count,
+            'model_accuracy':     '96.4%',
+            'response_time':      '142ms',
+            'uptime':             '99.8%',
+            'total_threat_types': sum(1 for item in threat_distribution if item['pct'] > 0),
         }
+    else:
         threat_distribution = []
+        metrics = {
+            'logs_processed':     '0',
+            'high_count':         0,
+            'medium_count':       0,
+            'low_count':          0,
+            'model_accuracy':     'N/A',
+            'response_time':      'N/A',
+            'uptime':             '99.8%',
+            'total_threat_types': 0,
+        }
+
 
     return render_template('dashboard.html',
         metrics=metrics,
-        high_alerts=get_alerts_data()[:3],
+        high_alerts=high_alerts,
         threat_distribution=threat_distribution,
         user=session['user'],
         role=session['role']
     )
-
 @pages_bp.route('/alerts')
 @login_required
 def alert_feed():
     from backend.src.database.models import Alert
 
     severity = request.args.get('severity', 'all')
-    query = Alert.query.order_by(Alert.created_at.desc())
+    attack_type = request.args.get('type', 'all')
+
+    query = Alert.query.filter_by(user_id=session['user_id']).order_by(Alert.created_at.desc())
+
     if severity != 'all':
         query = query.filter_by(severity=severity)
+    if attack_type != 'all':
+        query = query.filter_by(prediction=attack_type)
+
     alerts = [a.to_dict() for a in query.limit(100).all()]
 
     return render_template('alert_feed.html',
         alerts=alerts,
         severity=severity,
+        attack_type=attack_type,
         user=session['user'],
         role=session['role']
     )
+
 
 @pages_bp.route('/alerts/<int:alert_id>')
 @login_required
@@ -221,23 +245,40 @@ def threat_detail(alert_id):
         role=session['role']
     )
 
+
 @pages_bp.route('/logs')
 @login_required
-def log_viewer():
-    logs = get_logs_data()
-    search = request.args.get('search', '')
+def logs():
     filter_type = request.args.get('filter', 'all')
-    if search:
-        logs = [l for l in logs if search.lower() in l['source'].lower()
-                or search.lower() in l['type'].lower()]
+    search = request.args.get('search', '')
+
+    query = Alert.query.filter_by(user_id=session['user_id'])
+
     if filter_type == 'flagged':
-        logs = [l for l in logs if l['flagged']]
+        query = query.filter(Alert.severity.in_(['high', 'medium']))
     elif filter_type == 'normal':
-        logs = [l for l in logs if not l['flagged']]
+        query = query.filter_by(severity='normal')
+
+    total = query.count()
+    alerts = query.order_by(Alert.created_at.desc()).limit(500).all()
+
+    logs = []
+    for a in alerts:
+        logs.append({
+            'timestamp':   a.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'source':      f'10.0.{(a.row_index or 0) % 255}.{(a.row_index or 1) % 254 + 1}',
+            'destination': f'192.168.1.1:{a.dest_port}' if a.dest_port else '—',
+            'type':        a.prediction,
+            'protocol':    'TCP',
+            'severity':    a.severity,
+            'flagged':     a.severity in ('high', 'medium'),
+        })
+
     return render_template('log_viewer.html',
         logs=logs,
-        search=search,
+        total=total,
         filter_type=filter_type,
+        search=search,
         user=session['user'],
         role=session['role']
     )
@@ -256,7 +297,7 @@ def upload():
         else:
             error = result['error']
 
-    uploads = UploadedFile.query.order_by(UploadedFile.uploaded_at.desc()).limit(10).all()
+    uploads = UploadedFile.query.filter_by(user_id=session['user_id']).order_by(UploadedFile.uploaded_at.desc()).limit(10).all()
     history = [
         {
             'id':     u.id,
@@ -290,35 +331,3 @@ def model_metrics():
         role=session['role']
     )
 
-# ── Mock data (replace later with real DB/ML results) ─────────
-def get_alerts_data():
-    return [
-        {'id': 1, 'severity': 'high',   'description': 'SQL Injection Attempt — prod-db-01',  'source': '192.168.4.207', 'time': '14:17'},
-        {'id': 2, 'severity': 'high',   'description': 'SSH Brute Force Attack Detected',      'source': '10.0.4.88',     'time': '13:52'},
-        {'id': 3, 'severity': 'high',   'description': 'Lateral Port Scan — /24 Subnet',       'source': '172.16.0.44',   'time': '13:41'},
-        {'id': 4, 'severity': 'medium', 'description': 'Unusual Outbound Data Transfer',        'source': '10.0.1.33',     'time': '13:20'},
-        {'id': 5, 'severity': 'medium', 'description': 'Repeated Authentication Failures ×47', 'source': '192.168.1.12',  'time': '12:58'},
-        {'id': 6, 'severity': 'medium', 'description': 'Privilege Escalation — sudo abuse',    'source': '10.0.2.7',      'time': '12:30'},
-        {'id': 7, 'severity': 'low',    'description': 'Deprecated TLS 1.0 Handshake',         'source': '10.0.5.2',      'time': '11:45'},
-        {'id': 8, 'severity': 'low',    'description': 'DNS Lookup Anomaly — unusual pattern', 'source': '192.168.3.9',   'time': '11:12'},
-    ]
-
-def get_alert_detail(alert_id):
-    return {
-        'id': alert_id, 'severity': 'high',
-        'description': 'SQL Injection Attempt Detected',
-        'source': '192.168.4.207', 'destination': 'prod-db-01 / Port 3306',
-        'timestamp': '2026-04-28 14:17:03 SGT', 'type': 'SQL Injection · SQLI-07',
-        'confidence': 94,
-        'raw_log': '[2026-04-28 14:17:03] WARN auth-service: Unusual query pattern detected',
-        'action': 'Block source IP 192.168.4.207 at firewall level immediately.'
-    }
-
-def get_logs_data():
-    return [
-        {'timestamp': '14:17:03', 'source': '192.168.4.207', 'destination': '10.0.1.15:3306', 'type': 'SQL Injection',   'protocol': 'TCP/HTTP', 'severity': 'high',   'flagged': True},
-        {'timestamp': '14:15:22', 'source': '10.0.1.44',     'destination': '10.0.1.1:443',   'type': 'HTTPS Auth',      'protocol': 'TCP/TLS',  'severity': 'normal', 'flagged': False},
-        {'timestamp': '14:12:08', 'source': '10.0.4.88',     'destination': '10.0.1.22:22',   'type': 'SSH Brute Force', 'protocol': 'TCP/SSH',  'severity': 'high',   'flagged': True},
-        {'timestamp': '14:09:55', 'source': '10.0.2.3',      'destination': '8.8.8.8:53',     'type': 'DNS Query',       'protocol': 'UDP/DNS',  'severity': 'normal', 'flagged': False},
-        {'timestamp': '14:07:31', 'source': '172.16.0.44',   'destination': '10.0.0.0/24',    'type': 'Port Scan',       'protocol': 'TCP/ICMP', 'severity': 'high',   'flagged': True},
-    ]

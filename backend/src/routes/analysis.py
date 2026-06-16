@@ -51,6 +51,7 @@ def analyse(file_id):
     medium_alerts = sorted([r for r in results if r['severity'] == 'medium'], key=lambda x: x['confidence'], reverse=True)[:50]
 
     for r in high_alerts + medium_alerts:
+        row_data = X.iloc[r['row']]
         alert = Alert(
             analysis_id = record.id,
             user_id     = user_id,
@@ -58,6 +59,9 @@ def analyse(file_id):
             prediction  = r['prediction'],
             severity    = r['severity'],
             confidence  = r['confidence'],
+            dest_port     = int(row_data['Destination Port']),
+            flow_duration = round(float(row_data['Flow Duration']), 2),
+            flow_pkts_s   = round(float(row_data['Flow Packets/s']), 2)
         )
         db.session.add(alert)
 

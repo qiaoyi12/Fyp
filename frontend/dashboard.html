@@ -30,15 +30,25 @@
   </div>
 </div>
 
+
 <!-- RECENT HIGH SEVERITY ALERTS -->
-<div class="sec-title">Recent High-Severity Alerts</div>
-{% for alert in high_alerts %}
-<a href="/alerts/{{ alert.id }}" class="alert-row">
-  <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
-  <div class="a-desc">{{ alert.description }}</div>
-  <div class="a-src">{{ alert.source }}</div>
-  <div class="a-time">{{ alert.time }}</div>
-</a>
+  <div class="sec-title">Recent High-Severity Alerts</div>
+  {% for alert in high_alerts %}
+  <a href="/alerts/{{ alert.id }}" class="alert-row">
+    <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
+    <div class="alert-main">
+      <div class="a-title">{{ alert.prediction }} Detected</div>
+      <div class="a-meta">{{ alert.reason }}</div>
+    </div>
+    <div class="a-right">
+      <div class="a-conf">{{ alert.confidence }}%</div>
+      <div class="a-time">{{ alert.time }}</div>
+    </div>
+  </a>
+  {% else %}
+<div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:20px 0;">
+  No high severity alerts yet.
+</div>
 {% endfor %}
 
 <!-- BOTTOM GRID — PIE CHART + SYSTEM HEALTH -->
@@ -46,7 +56,7 @@
 
   <!-- THREAT DISTRIBUTION PIE CHART -->
   <div class="chart-card">
-    <div class="chart-title">Threat Distribution by Type</div>
+    <div class="chart-title">Total Threat Type</div>
     <div class="pie-wrap">
       <svg width="130" height="130" viewBox="0 0 130 130">
         <circle cx="65" cy="65" r="52" fill="none" stroke="#0e1a2a" stroke-width="22"/>
@@ -61,7 +71,7 @@
         {% set ns.offset = ns.offset + dasharray %}
         {% endfor %}
         <text x="65" y="60" text-anchor="middle" fill="#c8dff0"
-          font-family="JetBrains Mono" font-size="14" font-weight="600">nil</text>
+        font-family="JetBrains Mono" font-size="14" font-weight="600">{{ metrics.total_threat_types }}</text>
         <text x="65" y="75" text-anchor="middle" fill="#2a4a6a"
           font-family="JetBrains Mono" font-size="8">Total</text>
       </svg>
@@ -70,7 +80,7 @@
         <div class="pie-legend-item">
           <div class="pie-legend-dot" style="background:{{ item.colour }}"></div>
           <div class="pie-legend-label">{{ item.type }}</div>
-          <div class="pie-legend-pct" style="color:{{ item.colour }}">{{ item.pct }}%</div>
+          <div class="pie-legend-pct" style="color:{{ item.colour }}">{{ item.pct }}% ({{ item.count }})</div>
         </div>
         {% endfor %}
       </div>
