@@ -57,14 +57,11 @@
 # # run server
 # if __name__ == '__main__':
 #     app.run(debug=True)
-
 import os
 from flask import Flask
 from dotenv import load_dotenv
 from backend.src.database.db import db, bcrypt, jwt
-from backend.src.routes.auth import auth_bp
 from backend.src.routes.upload import upload_bp
-from backend.src.routes.analysis import analysis_bp
 from backend.src.routes.pages import pages_bp
 
 
@@ -90,9 +87,7 @@ jwt.init_app(app)
 
 # Register blueprints
 app.register_blueprint(pages_bp)
-app.register_blueprint(auth_bp,     url_prefix='/api/auth')
-app.register_blueprint(upload_bp,   url_prefix='/api')
-app.register_blueprint(analysis_bp, url_prefix='/api')
+app.register_blueprint(upload_bp, url_prefix='/api')
 
 # Create DB tables
 with app.app_context():
