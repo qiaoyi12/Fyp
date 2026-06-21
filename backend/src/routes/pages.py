@@ -1,12 +1,22 @@
+# it handles the routing on the web pages, connect the frontend with the backend
+
 from flask import Blueprint, render_template, request, session, redirect, url_for
 from functools import wraps
 from backend.src.database.models import User
-from backend.src.database.db import db, bcrypt
+from backend.src.database.db import db  
 from backend.src.services import data_service
 from backend.src.routes.upload import save_upload
+from datetime import datetime
 
 pages_bp = Blueprint('pages', __name__)
 
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except ValueError:
+        return None
 
 def login_required(f):
     @wraps(f)
@@ -141,7 +151,7 @@ def logs():
         logs=logs_data, total=total, filter_type=filter_type, search=search,
         user=session['user'], role=session['role'])
 
-
+# admin required is only for soc analysts
 @pages_bp.route('/upload', methods=['GET', 'POST'])
 @admin_required
 def upload():
@@ -170,3 +180,45 @@ def model_metrics():
     }
     return render_template('model_metrics.html',
         metrics=metrics, user=session['user'], role=session['role'])
+
+
+
+# report analysis page
+@pages_bp.route('/report')
+@login_required
+def report_analysis():
+    date_from = _parse_date(request.args.get('from'))
+    date_to = _parse_date(request.args.get('to'))
+
+    report = data_service.get_report_data(
+        session['user_id'], date_from=date_from, date_to=date_to
+    )
+    return render_template('report_analysis.html',
+        report=report,
+        date_from=request.args.get('from', ''), date_to=request.args.get('to', ''),
+        active_page='report', user=session['user'], role=session['role'])
+
+
+@pages_bp.route('/blacklist/add', methods=['POST'])
+@login_required
+def blacklist_add():
+    ip_address = request.form.get('ip_address', '').strip()
+    reason = request.form.get('reason', '').strip()
+    if ip_address:
+        data_service.add_blacklist_ip(ip_address, reason, session['user_id'])
+    return redirect(url_for('pages.report_analysis'))
+
+
+@pages_bp.route('/blacklist/remove/<int:entry_id>', methods=['POST'])
+@login_required
+def blacklist_remove(entry_id):
+    data_service.remove_blacklist_ip(entry_id)
+    return redirect(url_for('pages.report_analysis'))
+
+@pages_bp.route('/blacklist/remove_by_ip', methods=['POST'])
+@login_required
+def blacklist_remove_by_ip():
+    ip_address = request.form.get('ip_address', '').strip()
+    if ip_address:
+        data_service.remove_blacklist_ip_by_address(ip_address)
+    return redirect(url_for('pages.report_analysis'))

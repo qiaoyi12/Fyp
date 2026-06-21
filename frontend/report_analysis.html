@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Report Analysis — IDS{% endblock %}
+{% block page_title %}Report Analysis{% endblock %}
+{% block status_text %}Live{% endblock %}
+
+{% block content %}
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <input type="date" class="f-btn" id="date-from" value="{{ date_from }}" onchange="setParam('from', this.value)" title="From date">
+  <input type="date" class="f-btn" id="date-to" value="{{ date_to }}" onchange="setParam('to', this.value)" title="To date">
+  <a href="/report" class="f-btn">Clear Filters</a>
+</div>
+
+<!-- SUMMARY -->
+<div class="metric-grid-3" style="margin-top:14px">
+  <div class="metric-card">
+    <div class="m-label">Total Alerts</div>
+    <div class="m-value blue">{{ report.total_alerts }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="m-label">Unique Source IPs</div>
+    <div class="m-value">{{ report.total_unique_ips }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="m-label">Date Range</div>
+    <div class="m-value" style="font-size:13px">
+      {{ date_from if date_from else 'Earliest' }} → {{ date_to if date_to else 'Latest' }}
+    </div>
+  </div>
+</div>
+
+<!-- TOP OFFENDING IPs -->
+<div class="sec-title">Top {{ report.top_ips|length }} Source IPs by Attack Volume</div>
+<div id="top-ip-list">
+  {% for entry in report.top_ips %}
+  <div class="alert-row" style="cursor:default">
+    <span class="sev-badge sev-{{ entry.severity }}">{{ entry.severity.upper() }}</span>
+
+    <div class="alert-main">
+      <div class="a-title">{{ entry.ip }}</div>
+      <div class="a-meta">
+        {{ entry.count }} attack(s) · Most common: {{ entry.top_attack_type }}
+        &nbsp;·&nbsp; Last seen: {{ entry.last_seen }}
+      </div>
+    </div>
+
+    <div class="a-right">
+      {% if entry.is_blacklisted %}
+      <form action="/blacklist/remove_by_ip" method="POST" style="display:inline">
+        <input type="hidden" name="ip_address" value="{{ entry.ip }}">
+        <button type="submit" class="f-btn" style="cursor:pointer;color:#1DB954;border-color:#0E2A0E">
+          ✓ Blacklisted — Remove
+        </button>
+      </form>
+      {% else %}
+      <form action="/blacklist/add" method="POST" style="display:inline">
+        <input type="hidden" name="ip_address" value="{{ entry.ip }}">
+        <input type="hidden" name="reason" value="Top offender — {{ entry.count }} attacks">
+        <button type="submit" class="f-btn high" style="cursor:pointer">
+          + Blacklist
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-alerts">No alerts found for this date range.</div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function setParam(key, value) {
+    const url = new URL(window.location.href)
+    if (value) {
+      url.searchParams.set(key, value)
+    } else {
+      url.searchParams.delete(key)
+    }
+    window.location.href = url.toString()
+  }
+</script>
+{% endblock %}

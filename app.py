@@ -60,7 +60,7 @@
 import os
 from flask import Flask
 from dotenv import load_dotenv
-from backend.src.database.db import db, bcrypt, jwt
+from backend.src.database.db import db, bcrypt
 from backend.src.routes.upload import upload_bp
 from backend.src.routes.pages import pages_bp
 
@@ -77,13 +77,11 @@ app = Flask(
 # Config
 app.secret_key        = os.getenv('SECRET_KEY', 'session-secret-change-this')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///ids.db'
-app.config['JWT_SECRET_KEY']  = os.getenv('JWT_SECRET_KEY', 'change-this')
 app.config['UPLOAD_FOLDER']   = os.getenv('UPLOAD_FOLDER', 'uploadCsvStorage')
 
 # Init extensions
 db.init_app(app)
 bcrypt.init_app(app)
-jwt.init_app(app)
 
 # Register blueprints
 app.register_blueprint(pages_bp)

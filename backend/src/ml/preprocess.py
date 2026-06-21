@@ -1,5 +1,5 @@
 # to process the csv, clean and format the uploaded CSV to match what the model expects
-
+# im not sure if this works yet cause never try on a not cleaned csv
 import pandas as pd
 import numpy as np
 

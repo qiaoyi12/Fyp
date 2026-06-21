@@ -1,11 +1,20 @@
-# file handling 
+# file handling for the admin to upload the file
 import os
 import pandas as pd
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, current_app, session
 from werkzeug.utils import secure_filename
 from backend.src.database.db import db
 from backend.src.database.models import UploadedFile
+
+from functools import wraps
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 upload_bp = Blueprint('upload', __name__)
 
@@ -96,9 +105,9 @@ def save_upload(files, user_id):
 
 # ── REST API endpoint (for future use) ────────────────────────
 @upload_bp.route('/upload', methods=['POST'])
-@jwt_required()
+@login_required
 def upload_csv():
-    user_id = get_jwt_identity()
+    user_id = session['user_id']
     result = save_upload(request.files, user_id)
 
     if not result['success']:
@@ -113,9 +122,9 @@ def upload_csv():
 
 # ── Get all uploads for current user ──────────────────────────
 @upload_bp.route('/uploads', methods=['GET'])
-@jwt_required()
+@login_required
 def get_uploads():
-    user_id = get_jwt_identity()
+    user_id = session['user_id']
     uploads = UploadedFile.query.filter_by(user_id=user_id).order_by(
         UploadedFile.uploaded_at.desc()
     ).all()
