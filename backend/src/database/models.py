@@ -66,6 +66,7 @@ class AnalysisResult(db.Model):
 
     id          = db.Column(db.Integer, primary_key=True)
     file_id     = db.Column(db.Integer, db.ForeignKey('uploaded_files.id'), nullable=False)
+    file_ids    = db.Column(db.Text)
     user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     total_rows  = db.Column(db.Integer, default=0)
     high_count  = db.Column(db.Integer, default=0)

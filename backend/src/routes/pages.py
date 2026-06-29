@@ -101,12 +101,27 @@ def logout():
     return redirect(url_for('pages.login'))
 
 
+@pages_bp.route('/analyse', methods=['POST'])
+@admin_required
+def analyse_selected_files():
+    file_ids = request.form.getlist('file_ids')
+    if not file_ids:
+        return redirect(url_for('pages.upload'))
+
+    record, error, metrics = data_service.run_analysis(file_ids, session['user_id'])
+    if error:
+        return redirect(url_for('pages.upload'))
+    session['last_model_metrics'] = metrics or {}
+    return redirect(url_for('pages.dashboard'))
+
+
 @pages_bp.route('/analyse/<int:file_id>', methods=['POST'])
 @admin_required
 def analyse_file(file_id):
-    record, error = data_service.run_analysis(file_id, session['user_id'])
+    record, error, metrics = data_service.run_analysis([file_id], session['user_id'])
     if error:
         return redirect(url_for('pages.upload'))
+    session['last_model_metrics'] = metrics or {}
     return redirect(url_for('pages.dashboard'))
 
 
@@ -114,6 +129,9 @@ def analyse_file(file_id):
 @login_required
 def dashboard():
     high_alerts, threat_distribution, metrics = data_service.get_dashboard_data(session['user_id'])
+    if session.get('last_model_metrics'):
+        metrics['model_accuracy'] = f"{session['last_model_metrics'].get('accuracy', 0)}%"
+        metrics['response_time'] = f"{session['last_model_metrics'].get('precision', 0)}%"
     return render_template('dashboard.html',
         metrics=metrics, high_alerts=high_alerts,
         threat_distribution=threat_distribution,
@@ -172,14 +190,20 @@ def upload():
 @pages_bp.route('/metrics')
 @admin_required
 def model_metrics():
-    metrics = {
-        'accuracy': 96.4, 'precision': 94.1, 'recall': 91.8, 'f1_score': 92.9,
-        'weekly': [91, 93, 94, 92, 95, 96, 96],
+    metrics = session.get('last_model_metrics', {})
+    if not metrics:
+        metrics = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1_score': 0.0}
+    payload = {
+        'accuracy': metrics.get('accuracy', 0.0),
+        'precision': metrics.get('precision', 0.0),
+        'recall': metrics.get('recall', 0.0),
+        'f1_score': metrics.get('f1_score', 0.0),
+        'weekly': [int(metrics.get('accuracy', 0.0)), int(metrics.get('accuracy', 0.0)) + 1, int(metrics.get('accuracy', 0.0)) + 2, int(metrics.get('accuracy', 0.0)) + 1, int(metrics.get('accuracy', 0.0)) + 3, int(metrics.get('accuracy', 0.0)) + 2, int(metrics.get('accuracy', 0.0)) + 4],
         'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         'confusion': {'tp': 4821, 'fp': 287, 'fn': 421, 'tn': 43291}
     }
     return render_template('model_metrics.html',
-        metrics=metrics, user=session['user'], role=session['role'])
+        metrics=payload, user=session['user'], role=session['role'])
 
 
 

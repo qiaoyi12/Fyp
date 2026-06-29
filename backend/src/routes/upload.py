@@ -1,4 +1,4 @@
-# file handling for the admin to upload the file
+# File handling for uploading one or many CSV files.
 import os
 import pandas as pd
 from flask import Blueprint, request, jsonify, current_app, session
@@ -8,6 +8,7 @@ from backend.src.database.models import UploadedFile
 
 from functools import wraps
 
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -16,6 +17,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
 upload_bp = Blueprint('upload', __name__)
 
 ALLOWED_EXTENSIONS = {'csv'}
@@ -23,87 +25,106 @@ ALLOWED_EXTENSIONS = {'csv'}
 REQUIRED_COLUMNS = [
     'Destination Port', 'Flow Duration', 'Total Fwd Packets',
     'Total Backward Packets', 'Total Length of Fwd Packets',
-    'Total Length of Bwd Packets', 'Fwd Packet Length Max',
-    'Fwd Packet Length Min', 'Fwd Packet Length Mean',
-    'Fwd Packet Length Std', 'Bwd Packet Length Max',
-    'Bwd Packet Length Min', 'Bwd Packet Length Mean',
-    'Bwd Packet Length Std', 'Flow Bytes/s', 'Flow Packets/s',
-    'Flow IAT Mean', 'Flow IAT Std', 'Flow IAT Max', 'Flow IAT Min',
-    'Label'
+    'Total Length of Bwd Packets', 'Flow Bytes/s', 'Flow Packets/s',
+    'Flow IAT Mean', 'Flow IAT Std', 'Fwd Packet Length Mean',
+    'Bwd Packet Length Mean', 'Fwd Packets/s', 'Bwd Packets/s',
+    'SYN Flag Count', 'ACK Flag Count', 'PSH Flag Count',
+    'Init_Win_bytes_forward', 'Init_Win_bytes_backward'
 ]
 
 
-# ── Shared helper — used by both API and pages route ──────────
+# Shared helper used by both API and page routes.
 def save_upload(files, user_id):
-    """
-    Handles file validation, saving, and DB record creation.
-    Returns dict: { success, message, error, file_id, row_count }
-    """
-    if 'file' not in files:
+    if hasattr(files, 'getlist'):
+        file_items = files.getlist('files') or files.getlist('file')
+    else:
+        file_items = []
+
+    if not file_items and isinstance(files, dict):
+        if 'files' in files:
+            file_items = files['files'] if isinstance(files['files'], list) else [files['files']]
+        elif 'file' in files:
+            file_items = [files['file']]
+
+    if not file_items:
         return {'success': False, 'error': 'No file in request'}
 
-    file = files['file']
-
-    if file.filename == '':
-        return {'success': False, 'error': 'No file selected'}
-
-    ext = file.filename.rsplit('.', 1)[-1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        return {'success': False, 'error': f'Only .csv files allowed, got .{ext}'}
-
-    filename = secure_filename(file.filename)
     upload_folder = current_app.config['UPLOAD_FOLDER']
     os.makedirs(upload_folder, exist_ok=True)
-    filepath = os.path.join(upload_folder, filename)
-    file.save(filepath)
 
-    # Validate CSV
-    try:
-        df = pd.read_csv(filepath, nrows=5)
-        df.columns = df.columns.str.strip()
+    saved_records = []
+    errors = []
 
-        if df.empty:
-            os.remove(filepath)
-            return {'success': False, 'error': 'CSV file is empty'}
+    for file in file_items:
+        if not hasattr(file, 'filename') or file.filename == '':
+            continue
 
-        missing_cols = [c for c in REQUIRED_COLUMNS if c not in df.columns]
-        if missing_cols:
-            os.remove(filepath)
-            return {'success': False, 'error': f'Missing columns: {missing_cols}'}
+        ext = file.filename.rsplit('.', 1)[-1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            errors.append(f'Only .csv files allowed, got .{ext}')
+            continue
 
-        # Get full row count
-        full_df = pd.read_csv(filepath)
-        full_df.columns = full_df.columns.str.strip()
-        row_count = len(full_df)
-
-    except Exception as e:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(upload_folder, filename)
         if os.path.exists(filepath):
-            os.remove(filepath)
-        return {'success': False, 'error': f'Failed to read CSV: {str(e)}'}
+            base, ext_name = os.path.splitext(filename)
+            filepath = os.path.join(upload_folder, f'{base}_{len(saved_records) + 1}{ext_name}')
 
-    # Save to DB
-    try:
-        record = UploadedFile(
-            filename=filename,
-            filepath=filepath,
-            row_count=row_count,
-            is_valid=True,
-            user_id=user_id
-        )
-        db.session.add(record)
-        db.session.commit()
-    except Exception as e:
-        return {'success': False, 'error': f'DB error: {str(e)}'}
+        file.save(filepath)
+
+        try:
+            df = pd.read_csv(filepath, nrows=5)
+            df.columns = df.columns.str.strip()
+
+            if df.empty:
+                os.remove(filepath)
+                errors.append(f'{file.filename} is empty')
+                continue
+
+            missing_cols = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+            if missing_cols:
+                os.remove(filepath)
+                errors.append(f'{file.filename} is missing columns: {missing_cols}')
+                continue
+
+            full_df = pd.read_csv(filepath)
+            full_df.columns = full_df.columns.str.strip()
+            row_count = len(full_df)
+        except Exception as e:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            errors.append(f'{file.filename} failed: {str(e)}')
+            continue
+
+        try:
+            record = UploadedFile(
+                filename=os.path.basename(filepath),
+                filepath=filepath,
+                row_count=row_count,
+                is_valid=True,
+                user_id=user_id
+            )
+            db.session.add(record)
+            db.session.commit()
+            saved_records.append(record)
+        except Exception as e:
+            errors.append(f'{file.filename} DB error: {str(e)}')
+
+    if not saved_records:
+        return {'success': False, 'error': errors[0] if errors else 'No valid files uploaded'}
+
+    message = f'Uploaded {len(saved_records)} file(s)'
+    if errors:
+        message += f' · {len(errors)} skipped'
 
     return {
         'success': True,
-        'message': f'{filename} uploaded · {row_count} rows saved',
-        'file_id': record.id,
-        'row_count': row_count
+        'message': message,
+        'results': saved_records,
+        'row_count': sum(r.row_count or 0 for r in saved_records),
     }
 
 
-# ── REST API endpoint (for future use) ────────────────────────
 @upload_bp.route('/upload', methods=['POST'])
 @login_required
 def upload_csv():
@@ -114,13 +135,12 @@ def upload_csv():
         return jsonify({'error': result['error']}), 422
 
     return jsonify({
-        'message':   result['message'],
-        'file_id':   result['file_id'],
-        'row_count': result['row_count']
+        'message': result['message'],
+        'files': [r.id for r in result.get('results', [])],
+        'row_count': result['row_count'],
     }), 200
 
 
-# ── Get all uploads for current user ──────────────────────────
 @upload_bp.route('/uploads', methods=['GET'])
 @login_required
 def get_uploads():

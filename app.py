@@ -59,6 +59,7 @@
 #     app.run(debug=True)
 import os
 from flask import Flask
+from sqlalchemy import inspect, text
 from dotenv import load_dotenv
 from backend.src.database.db import db, bcrypt
 from backend.src.routes.upload import upload_bp
@@ -90,6 +91,13 @@ app.register_blueprint(upload_bp, url_prefix='/api')
 # Create DB tables
 with app.app_context():
     db.create_all()
+
+    inspector = inspect(db.engine)
+    if 'analysis_results' in inspector.get_table_names():
+        columns = {column['name'] for column in inspector.get_columns('analysis_results')}
+        if 'file_ids' not in columns:
+            with db.engine.begin() as connection:
+                connection.execute(text("ALTER TABLE analysis_results ADD COLUMN file_ids TEXT"))
 
 if __name__ == '__main__':
     app.run(debug=True)
