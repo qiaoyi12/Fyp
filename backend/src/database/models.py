@@ -95,7 +95,17 @@ class AnalysisAssignment(db.Model):
     assigned_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'analysis_id': self.analysis_id,
+            'analyst_id': self.analyst_id,
+            'assigned_by': self.assigned_by,
+            'assigned_at': self.assigned_at.strftime('%Y-%m-%d %H:%M'),
+        }
+
     analyst = db.relationship('User', foreign_keys=[analyst_id])
+    
 
 # for the alerts feed page
 class Alert(db.Model):
@@ -126,8 +136,7 @@ class Alert(db.Model):
             'Web Attack':  f'Malicious payload on port {self.dest_port}',
             'Bot/Patator': f'Automated attack on port {self.dest_port} · {self.flow_pkts_s} pkts/s',
             'Rare/Others': f'Anomalous flow on port {self.dest_port}',
-            'BENIGN':      'Normal traffic',
-            'consensus': '✓ Consensus' if self.xgb_vote == self.rf_vote else '⚠ Conflict',
+            'BENIGN':      'Normal traffic'
         }.get(self.prediction, 'Unknown pattern')
 
         return {

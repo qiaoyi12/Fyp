@@ -32,7 +32,7 @@ def admin_required(f):
     def decorated(*args, **kwargs):
         if 'user' not in session:
             return redirect(url_for('pages.login'))
-        if session.get('role') != 'admin':
+        if session.get('role') != 'admin':  # change this to 'IT Administrator' later
             return redirect(url_for('pages.dashboard'))
         return f(*args, **kwargs)
     return decorated
@@ -101,13 +101,14 @@ def logout():
     return redirect(url_for('pages.login'))
 
 
+# admin required is only for soc analysts
 @pages_bp.route('/analyse', methods=['POST'])
 @admin_required
 def analyse_selected_files():
     file_ids = request.form.getlist('file_ids')
     if not file_ids:
         return redirect(url_for('pages.upload'))
-
+    # not sure later check
     record, error, metrics = data_service.run_analysis(file_ids, session['user_id'])
     if error:
         return redirect(url_for('pages.upload'))
@@ -128,7 +129,10 @@ def analyse_file(file_id):
 @pages_bp.route('/dashboard')
 @login_required
 def dashboard():
-    high_alerts, threat_distribution, metrics = data_service.get_dashboard_data(session['user_id'])
+    # SOC Analysts only see data from analyses assigned to them
+    high_alerts, threat_distribution, metrics = data_service.get_dashboard_data(
+        session['user_id'], session['role']
+    )
     if session.get('last_model_metrics'):
         metrics['model_accuracy'] = f"{session['last_model_metrics'].get('accuracy', 0)}%"
         metrics['response_time'] = f"{session['last_model_metrics'].get('precision', 0)}%"
@@ -143,7 +147,9 @@ def dashboard():
 def alert_feed():
     severity = request.args.get('severity', 'all')
     attack_type = request.args.get('type', 'all')
-    alerts = data_service.get_alert_feed(session['user_id'], severity, attack_type)
+    alerts = data_service.get_alert_feed(
+        session['user_id'], session['role'], severity, attack_type
+    )
     return render_template('alert_feed.html',
         alerts=alerts, severity=severity, attack_type=attack_type,
         user=session['user'], role=session['role'])
@@ -152,7 +158,7 @@ def alert_feed():
 @pages_bp.route('/alerts/<int:alert_id>')
 @login_required
 def threat_detail(alert_id):
-    alert = data_service.get_alert_detail(session['user_id'], alert_id)
+    alert = data_service.get_alert_detail(session['user_id'], session['role'], alert_id)
     if not alert:
         return redirect(url_for('pages.alert_feed'))
     return render_template('threat_detail.html',
@@ -164,12 +170,14 @@ def threat_detail(alert_id):
 def logs():
     filter_type = request.args.get('filter', 'all')
     search = request.args.get('search', '')
-    logs_data, total = data_service.get_logs(session['user_id'], filter_type)
+    logs_data, total = data_service.get_logs(
+        session['user_id'], session['role'], filter_type
+    )
     return render_template('log_viewer.html',
         logs=logs_data, total=total, filter_type=filter_type, search=search,
         user=session['user'], role=session['role'])
 
-# admin required is only for soc analysts
+
 @pages_bp.route('/upload', methods=['GET', 'POST'])
 @admin_required
 def upload():
@@ -180,7 +188,6 @@ def upload():
             message = result['message']
         else:
             error = result['error']
-
     history = data_service.get_upload_history(session['user_id'])
     return render_template('upload.html',
         message=message, error=error, history=history,
@@ -194,11 +201,20 @@ def model_metrics():
     if not metrics:
         metrics = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1_score': 0.0}
     payload = {
-        'accuracy': metrics.get('accuracy', 0.0),
+        'accuracy':  metrics.get('accuracy', 0.0),
         'precision': metrics.get('precision', 0.0),
-        'recall': metrics.get('recall', 0.0),
-        'f1_score': metrics.get('f1_score', 0.0),
-        'weekly': [int(metrics.get('accuracy', 0.0)), int(metrics.get('accuracy', 0.0)) + 1, int(metrics.get('accuracy', 0.0)) + 2, int(metrics.get('accuracy', 0.0)) + 1, int(metrics.get('accuracy', 0.0)) + 3, int(metrics.get('accuracy', 0.0)) + 2, int(metrics.get('accuracy', 0.0)) + 4],
+        'recall':    metrics.get('recall', 0.0),
+        'f1_score':  metrics.get('f1_score', 0.0),
+        # change this part is for plceholder now
+        'weekly': [
+            int(metrics.get('accuracy', 0.0)),
+            int(metrics.get('accuracy', 0.0)) + 1,
+            int(metrics.get('accuracy', 0.0)) + 2,
+            int(metrics.get('accuracy', 0.0)) + 1,
+            int(metrics.get('accuracy', 0.0)) + 3,
+            int(metrics.get('accuracy', 0.0)) + 2,
+            int(metrics.get('accuracy', 0.0)) + 4,
+        ],
         'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         'confusion': {'tp': 4821, 'fp': 287, 'fn': 421, 'tn': 43291}
     }
@@ -206,16 +222,51 @@ def model_metrics():
         metrics=payload, user=session['user'], role=session['role'])
 
 
+@pages_bp.route('/assign', methods=['GET'])
+@admin_required
+def assign():
+    analyses = data_service.get_analyses_for_assignment(session['user_id'])
+    analysts = data_service.get_all_analysts()
+    message = request.args.get('message')
+    error = request.args.get('error')
+    return render_template('assign.html',
+        analyses=analyses, analysts=analysts,
+        message=message, error=error,
+        active_page='assign', user=session['user'], role=session['role'])
 
-# report analysis page
+
+@pages_bp.route('/assign', methods=['POST'])
+@admin_required
+def assign_submit():
+    analysis_id = request.form.get('analysis_id')
+    analyst_ids = request.form.getlist('analyst_ids')
+    if not analysis_id or not analyst_ids:
+        return redirect(url_for('pages.assign', error='Please select an analysis and at least one analyst.'))
+    data_service.assign_analysis(
+        analysis_id=int(analysis_id),
+        analyst_ids=[int(i) for i in analyst_ids],
+        assigned_by=session['user_id']
+    )
+    return redirect(url_for('pages.assign', message='Analysis successfully assigned.'))
+
+@pages_bp.route('/assign/remove', methods=['POST'])
+@admin_required
+def unassign():
+    analysis_id = request.form.get('analysis_id')
+    analyst_id = request.form.get('analyst_id')
+    if analysis_id and analyst_id:
+        data_service.remove_assignment(int(analysis_id), int(analyst_id))
+    return redirect(url_for('pages.assign'))
+
+
 @pages_bp.route('/report')
 @login_required
 def report_analysis():
     date_from = _parse_date(request.args.get('from'))
     date_to = _parse_date(request.args.get('to'))
-
     report = data_service.get_report_data(
-        session['user_id'], date_from=date_from, date_to=date_to
+        session['user_id'], session['role'],
+        date_from=date_from, date_to=date_to
     )
     return render_template('report_analysis.html',
         report=report,
@@ -224,7 +275,7 @@ def report_analysis():
 
 
 @pages_bp.route('/blacklist/add', methods=['POST'])
-@login_required
+@admin_required
 def blacklist_add():
     ip_address = request.form.get('ip_address', '').strip()
     reason = request.form.get('reason', '').strip()
@@ -234,13 +285,14 @@ def blacklist_add():
 
 
 @pages_bp.route('/blacklist/remove/<int:entry_id>', methods=['POST'])
-@login_required
+@admin_required
 def blacklist_remove(entry_id):
     data_service.remove_blacklist_ip(entry_id)
     return redirect(url_for('pages.report_analysis'))
 
+
 @pages_bp.route('/blacklist/remove_by_ip', methods=['POST'])
-@login_required
+@admin_required
 def blacklist_remove_by_ip():
     ip_address = request.form.get('ip_address', '').strip()
     if ip_address:

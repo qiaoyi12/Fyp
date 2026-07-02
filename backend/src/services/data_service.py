@@ -1,7 +1,7 @@
 # Handles uploaded data, analysis, alerts, logs, and report summary.
 import json
 from datetime import timedelta
-from backend.src.database.models import Alert, AnalysisResult, UploadedFile, IPBlacklist
+from backend.src.database.models import Alert, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
 from backend.src.database.db import db
 from backend.src.ml.preprocess import preprocess_csv
 from backend.src.ml.predict import predict, get_summary, estimate_model_metrics
@@ -9,34 +9,69 @@ from backend.src.ml.predict import predict, get_summary, estimate_model_metrics
 SEVERITY_RANK = {'normal': 0, 'medium': 1, 'high': 2}
 
 
-def get_dashboard_data(user_id):
-    high_alerts = Alert.query.filter_by(severity='high', user_id=user_id) \
+# ── ASSIGNMENT HELPER ─────────────────────────────────────────
+def _get_assigned_analysis_ids(analyst_id):
+    """Returns list of analysis_ids assigned to this SOC Analyst."""
+    assignments = AnalysisAssignment.query.filter_by(analyst_id=analyst_id).all()
+    return [a.analysis_id for a in assignments]
+
+
+def _alert_query(user_id, role):
+    """
+    Returns the base Alert query scoped to what this user can see.
+    IT Administrator: all alerts they uploaded.
+    SOC Analyst: only alerts from analyses assigned to them.
+    """
+    if role == 'analyst':
+        analysis_ids = _get_assigned_analysis_ids(user_id)
+        if not analysis_ids:
+            return Alert.query.filter_by(id=None)  # empty result
+        return Alert.query.filter(Alert.analysis_id.in_(analysis_ids))
+    return Alert.query.filter_by(user_id=user_id)
+
+
+def _analysis_query(user_id, role):
+    """
+    Same scoping logic but for AnalysisResult queries.
+    """
+    if role == 'analyst':
+        analysis_ids = _get_assigned_analysis_ids(user_id)
+        if not analysis_ids:
+            return AnalysisResult.query.filter_by(id=None)
+        return AnalysisResult.query.filter(AnalysisResult.id.in_(analysis_ids))
+    return AnalysisResult.query.filter_by(user_id=user_id)
+
+
+# ── DASHBOARD ─────────────────────────────────────────────────
+def get_dashboard_data(user_id, role):
+    high_alerts = _alert_query(user_id, role)\
+        .filter_by(severity='high')\
         .order_by(Alert.created_at.desc()).limit(3).all()
     high_alerts = [a.to_dict() for a in high_alerts]
 
-    latest = AnalysisResult.query.filter_by(user_id=user_id) \
+    latest = _analysis_query(user_id, role)\
         .order_by(AnalysisResult.analysed_at.desc()).first()
 
     if not latest:
         return high_alerts, [], _empty_metrics()
 
     threat_distribution = [
-        {'type': 'BENIGN', 'pct': round(latest.benign / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.benign, 'colour': '#1DB954'},
-        {'type': 'Web Attack', 'pct': round(latest.web_attack / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.web_attack, 'colour': '#E74C3C'},
-        {'type': 'DoS', 'pct': round(latest.dos / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.dos, 'colour': '#F39C12'},
-        {'type': 'DDoS', 'pct': round(latest.ddos / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.ddos, 'colour': '#3D8EFF'},
-        {'type': 'PortScan', 'pct': round(latest.portscan / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.portscan, 'colour': '#A07EFF'},
-        {'type': 'Bot/Patator', 'pct': round(latest.bot / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.bot, 'colour': '#FF6B6B'},
-        {'type': 'Rare/Others', 'pct': round(latest.rare / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.rare, 'colour': '#FFD93D'},
+        {'type': 'BENIGN',      'pct': round(latest.benign      / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.benign,      'colour': '#1DB954'},
+        {'type': 'Web Attack',  'pct': round(latest.web_attack  / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.web_attack,  'colour': '#E74C3C'},
+        {'type': 'DoS',         'pct': round(latest.dos         / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.dos,         'colour': '#F39C12'},
+        {'type': 'DDoS',        'pct': round(latest.ddos        / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.ddos,        'colour': '#3D8EFF'},
+        {'type': 'PortScan',    'pct': round(latest.portscan    / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.portscan,    'colour': '#A07EFF'},
+        {'type': 'Bot/Patator', 'pct': round(latest.bot         / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.bot,         'colour': '#FF6B6B'},
+        {'type': 'Rare/Others', 'pct': round(latest.rare        / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.rare,        'colour': '#FFD93D'},
     ]
     metrics = {
         'logs_processed': f'{latest.total_rows:,}',
-        'high_count': latest.high_count,
-        'medium_count': latest.medium_count,
-        'low_count': latest.normal_count,
+        'high_count':     latest.high_count,
+        'medium_count':   latest.medium_count,
+        'low_count':      latest.normal_count,
         'model_accuracy': 'N/A',
-        'response_time': 'N/A',
-        'uptime': '99.8%',
+        'response_time':  'N/A',
+        'uptime':         '99.8%',
         'total_threat_types': sum(1 for item in threat_distribution if item['pct'] > 0),
     }
     return high_alerts, threat_distribution, metrics
@@ -50,8 +85,8 @@ def _empty_metrics():
     }
 
 
+# ── ANALYSIS ──────────────────────────────────────────────────
 def _estimate_model_metrics(results):
-    # Use the ML-backed estimator so the backend accuracy is tied to the trained models.
     return estimate_model_metrics(results)
 
 
@@ -168,8 +203,9 @@ def run_analysis(file_ids, user_id):
     return record, None, metrics
 
 
-def get_alert_feed(user_id, severity, attack_type):
-    query = Alert.query.filter_by(user_id=user_id).order_by(Alert.created_at.desc())
+# ── ALERTS ────────────────────────────────────────────────────
+def get_alert_feed(user_id, role, severity, attack_type):
+    query = _alert_query(user_id, role).order_by(Alert.created_at.desc())
     if severity != 'all':
         query = query.filter_by(severity=severity)
     if attack_type != 'all':
@@ -177,12 +213,13 @@ def get_alert_feed(user_id, severity, attack_type):
     return [a.to_dict() for a in query.limit(100).all()]
 
 
-def get_alert_detail(user_id, alert_id):
-    return Alert.query.filter_by(id=alert_id, user_id=user_id).first()
+def get_alert_detail(user_id, role, alert_id):
+    return _alert_query(user_id, role).filter_by(id=alert_id).first()
 
 
-def get_logs(user_id, filter_type):
-    query = Alert.query.filter_by(user_id=user_id)
+# ── LOGS ──────────────────────────────────────────────────────
+def get_logs(user_id, role, filter_type):
+    query = _alert_query(user_id, role)
     if filter_type == 'flagged':
         query = query.filter(Alert.severity.in_(['high', 'medium']))
     elif filter_type == 'normal':
@@ -192,18 +229,19 @@ def get_logs(user_id, filter_type):
     alerts = query.order_by(Alert.created_at.desc()).limit(500).all()
 
     logs = [{
-        'timestamp': a.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'source': f'10.0.{(a.row_index or 0) % 255}.{(a.row_index or 1) % 254 + 1}',
+        'timestamp':   a.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'source':      a.source_ip or '—',
         'destination': f'192.168.1.1:{a.dest_port}' if a.dest_port else '—',
-        'type': a.prediction,
-        'protocol': 'TCP',
-        'severity': a.severity,
-        'flagged': a.severity in ('high', 'medium'),
+        'type':        a.prediction,
+        'protocol':    'TCP',
+        'severity':    a.severity,
+        'flagged':     a.severity in ('high', 'medium'),
     } for a in alerts]
 
     return logs, total
 
 
+# ── UPLOAD HISTORY ────────────────────────────────────────────
 def get_upload_history(user_id, limit=10):
     uploads = UploadedFile.query.filter_by(user_id=user_id) \
         .order_by(UploadedFile.uploaded_at.desc()).limit(limit).all()
@@ -214,9 +252,9 @@ def get_upload_history(user_id, limit=10):
     } for u in uploads]
 
 
-# report analysis page (can be work on)
-def get_report_data(user_id, date_from=None, date_to=None, top_n=5):
-    query = AnalysisResult.query.filter_by(user_id=user_id)
+# ── REPORT ANALYSIS ───────────────────────────────────────────
+def get_report_data(user_id, role, date_from=None, date_to=None, top_n=5):
+    query = _analysis_query(user_id, role)
     if date_from:
         query = query.filter(AnalysisResult.analysed_at >= date_from)
     if date_to:
@@ -258,6 +296,7 @@ def get_report_data(user_id, date_from=None, date_to=None, top_n=5):
     }
 
 
+# ── BLACKLIST ─────────────────────────────────────────────────
 def get_blacklist(user_id=None):
     return [b.to_dict() for b in IPBlacklist.query.order_by(IPBlacklist.added_at.desc()).all()]
 
@@ -281,6 +320,61 @@ def remove_blacklist_ip(entry_id):
 
 def remove_blacklist_ip_by_address(ip_address):
     entry = IPBlacklist.query.filter_by(ip_address=ip_address).first()
+    if entry:
+        db.session.delete(entry)
+        db.session.commit()
+
+
+# ── ASSIGN ────────────────────────────────────────────────
+def get_analyses_for_assignment(admin_user_id):
+    """All analysis runs this admin has done, with current assignment status."""
+    analyses = AnalysisResult.query.filter_by(user_id=admin_user_id)\
+        .order_by(AnalysisResult.analysed_at.desc()).all()
+    result = []
+    for a in analyses:
+        file = UploadedFile.query.get(a.file_id)
+        assignments = AnalysisAssignment.query.filter_by(analysis_id=a.id).all()
+        assigned_to = [
+            {'id': assign.analyst.id, 'username': assign.analyst.username, 'analyst_id': assign.analyst_id}
+            for assign in assignments
+        ]
+        result.append({
+            'id':           a.id,
+            'filename':     file.filename if file else 'Unknown',
+            'analysed_at':  a.analysed_at.strftime('%Y-%m-%d %H:%M'),
+            'total_rows':   a.total_rows,
+            'high_count':   a.high_count,
+            'medium_count': a.medium_count,
+            'assigned_to':  assigned_to,
+            'is_assigned':  len(assigned_to) > 0,
+        })
+    return result
+
+
+def get_all_analysts():
+    """All SOC Analyst accounts for the assignment dropdown."""
+    analysts = User.query.filter_by(role='analyst').all()
+    return [{'id': u.id, 'username': u.username} for u in analysts]
+
+
+def assign_analysis(analysis_id, analyst_ids, assigned_by):
+    existing_ids = {
+        a.analyst_id for a in 
+        AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
+    }
+    for analyst_id in analyst_ids:
+        if analyst_id not in existing_ids:
+            db.session.add(AnalysisAssignment(
+                analysis_id=analysis_id,
+                analyst_id=analyst_id,
+                assigned_by=assigned_by,
+            ))
+    db.session.commit()
+
+def remove_assignment(analysis_id, analyst_id):
+    entry = AnalysisAssignment.query.filter_by(
+        analysis_id=analysis_id, analyst_id=analyst_id
+    ).first()
     if entry:
         db.session.delete(entry)
         db.session.commit()

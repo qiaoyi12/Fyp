@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Assign to Analyst — IDS{% endblock %}
+{% block page_title %}Assign to Analyst{% endblock %}
+{% block status_text %}System Operational{% endblock %}
+
+{% block content %}
+
+{% if message %}
+<div class="msg-success">✓ {{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="msg-error">✕ {{ error }}</div>
+{% endif %}
+
+<form method="POST" action="/assign">
+
+  <!-- STEP 1: PICK AN ANALYSIS RUN -->
+  <div class="sec-title">Step 1 — Select Analysis Run</div>
+  {% if analyses %}
+  {% for a in analyses %}
+  <label style="display:block;cursor:pointer">
+    <div class="upload-hist-row" style="gap:10px">
+
+      <input type="radio" name="analysis_id" value="{{ a.id }}" required
+        style="accent-color:#3D8EFF">
+
+      <div style="flex:1">
+        <div style="font-size:11px;color:#c8dff0;font-family:'JetBrains Mono',monospace">
+          {{ a.filename }}
+        </div>
+        <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;margin-top:2px">
+          Analysed {{ a.analysed_at }} · {{ a.total_rows }} rows ·
+          <span style="color:#E74C3C">{{ a.high_count }} high</span> ·
+          <span style="color:#F39C12">{{ a.medium_count }} medium</span>
+        </div>
+      </div>
+
+      {% if a.is_assigned %}
+      <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+        <span style="font-size:9px;color:#1DB954;font-family:'JetBrains Mono',monospace">✓</span>
+        {% for analyst in a.assigned_to %}
+        <form action="/assign/remove" method="POST" style="display:inline;margin:0">
+          <input type="hidden" name="analysis_id" value="{{ a.id }}">
+          <input type="hidden" name="analyst_id" value="{{ analyst.analyst_id }}">
+          <button type="submit"
+            style="font-size:9px;font-family:'JetBrains Mono',monospace;
+                   background:rgba(231,76,60,0.08);border:1px solid #1A0808;
+                   color:#c8dff0;border-radius:4px;padding:2px 6px;cursor:pointer;
+                   display:flex;align-items:center;gap:4px">
+            {{ analyst.username }}
+            <span style="color:#E74C3C">✕</span>
+          </button>
+        </form>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace">
+        Unassigned
+      </div>
+      {% endif %}
+
+    </div>
+  </label>
+  {% endfor %}
+  {% else %}
+  <div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:20px 0">
+    No analysis runs yet. Upload and analyse a CSV file first.
+  </div>
+  {% endif %}
+
+  <!-- STEP 2: PICK SOC ANALYSTS -->
+  <div class="sec-title" style="margin-top:20px">Step 2 — Select SOC Analyst(s)</div>
+  {% if analysts %}
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    {% for analyst in analysts %}
+    <label style="cursor:pointer">
+      <div class="f-btn" id="analyst-btn-{{ analyst.id }}"
+        style="display:flex;align-items:center;gap:6px;padding:6px 12px">
+        <input type="checkbox" name="analyst_ids" value="{{ analyst.id }}"
+          style="accent-color:#3D8EFF"
+          onchange="toggleAnalystBtn({{ analyst.id }}, this.checked)">
+        <div class="sb-avatar" style="width:20px;height:20px;font-size:8px;line-height:20px">
+          {{ analyst.username[:2].upper() }}
+        </div>
+        {{ analyst.username }}
+      </div>
+    </label>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:12px 0">
+    No SOC Analyst accounts found. Register a SOC Analyst account first.
+  </div>
+  {% endif %}
+
+  <!-- SUBMIT -->
+  {% if analyses and analysts %}
+  <button type="submit"
+    style="margin-top:6px;font-size:9px;padding:6px 16px;border-radius:5px;
+           background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
+           color:#3D8EFF;font-family:'JetBrains Mono',monospace;cursor:pointer;">
+    Assign Analysis →
+  </button>
+  {% endif %}
+
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleAnalystBtn(id, checked) {
+    const btn = document.getElementById('analyst-btn-' + id)
+    if (checked) {
+      btn.style.background = 'rgba(61,142,255,0.08)'
+      btn.style.color = '#3D8EFF'
+      btn.style.borderColor = '#1A3A6A'
+    } else {
+      btn.style.background = ''
+      btn.style.color = ''
+      btn.style.borderColor = ''
+    }
+  }
+</script>
+{% endblock %}
