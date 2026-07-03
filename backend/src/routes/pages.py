@@ -135,10 +135,13 @@ def dashboard():
     )
     if session.get('last_model_metrics'):
         metrics['model_accuracy'] = f"{session['last_model_metrics'].get('accuracy', 0)}%"
-        metrics['response_time'] = f"{session['last_model_metrics'].get('precision', 0)}%"
+        response_seconds = session['last_model_metrics'].get('response_time_seconds')
+        metrics['response_time'] = f"{response_seconds}s" if response_seconds is not None else 'N/A'
+    no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
     return render_template('dashboard.html',
         metrics=metrics, high_alerts=high_alerts,
         threat_distribution=threat_distribution,
+        no_assignments=no_assignments,
         user=session['user'], role=session['role'])
 
 
@@ -150,8 +153,10 @@ def alert_feed():
     alerts = data_service.get_alert_feed(
         session['user_id'], session['role'], severity, attack_type
     )
+    no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
     return render_template('alert_feed.html',
         alerts=alerts, severity=severity, attack_type=attack_type,
+        no_assignments=no_assignments,
         user=session['user'], role=session['role'])
 
 
@@ -173,8 +178,10 @@ def logs():
     logs_data, total = data_service.get_logs(
         session['user_id'], session['role'], filter_type
     )
+    no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
     return render_template('log_viewer.html',
         logs=logs_data, total=total, filter_type=filter_type, search=search,
+        no_assignments=no_assignments,
         user=session['user'], role=session['role'])
 
 
@@ -268,8 +275,10 @@ def report_analysis():
         session['user_id'], session['role'],
         date_from=date_from, date_to=date_to
     )
+    no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
     return render_template('report_analysis.html',
         report=report,
+        no_assignments=no_assignments,
         date_from=request.args.get('from', ''), date_to=request.args.get('to', ''),
         active_page='report', user=session['user'], role=session['role'])
 

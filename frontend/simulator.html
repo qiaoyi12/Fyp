@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Traffic Simulator — IDS{% endblock %}
+{% block page_title %}Traffic Simulator{% endblock %}
+{% block status_text %}Ready{% endblock %}
+
+{% block content %}
+
+<!-- STATUS CARDS -->
+<div class="metric-grid-4">
+
+  <div class="metric-card">
+    <div class="m-label">Simulation</div>
+    <div class="m-value blue" id="simStatus">
+      Stopped
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <div class="m-label">Current Traffic</div>
+    <div class="m-value green" id="currentAttack">
+      BENIGN
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <div class="m-label">Flows Generated</div>
+    <div class="m-value blue" id="flowCount">
+      0
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <div class="m-label">Last Prediction</div>
+    <div class="m-value red" id="prediction">
+      -
+    </div>
+  </div>
+
+</div>
+
+<!-- CONTROLS -->
+
+<div class="chart-card" style="margin-top:15px">
+
+<div class="chart-title">
+Traffic Generator
+</div>
+
+<div style="display:flex;gap:15px;align-items:center;flex-wrap:wrap">
+
+<select id="attackType" class="form-control">
+
+<option value="mixed">Mixed</option>
+
+<option value="benign">Benign</option>
+
+<option value="dos">DoS</option>
+
+<option value="ddos">DDoS</option>
+
+<option value="portscan">Port Scan</option>
+
+<option value="web">Web Attack</option>
+
+<option value="bot">Bot</option>
+
+</select>
+
+<input
+type="number"
+id="speed"
+value="2"
+min="1"
+style="width:120px"
+class="form-control">
+
+<button
+class="btn-primary"
+onclick="startSimulation()">
+
+▶ Start
+
+</button>
+
+<button
+class="btn-danger"
+onclick="stopSimulation()">
+
+■ Stop
+
+</button>
+
+</div>
+
+</div>
+
+<!-- LIVE EVENTS -->
+
+<div class="chart-card" style="margin-top:15px">
+
+<div class="chart-title">
+
+Live Traffic
+
+</div>
+
+<div
+id="trafficLog"
+style="
+height:350px;
+overflow:auto;
+font-family:JetBrains Mono;
+font-size:12px">
+
+</div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+
+function startSimulation(){
+
+fetch("/simulator/start",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+
+attack:document.getElementById("attackType").value,
+
+speed:document.getElementById("speed").value
+
+})
+
+})
+
+.then(r=>r.json())
+
+.then(data=>{
+
+document.getElementById("simStatus").innerHTML="Running";
+
+});
+
+}
+
+function stopSimulation(){
+
+fetch("/simulator/stop");
+
+document.getElementById("simStatus").innerHTML="Stopped";
+
+}
+
+function refreshTraffic(){
+
+fetch("/simulator/live")
+
+.then(r=>r.json())
+
+.then(data=>{
+
+document.getElementById("flowCount").innerHTML=data.total;
+
+document.getElementById("prediction").innerHTML=data.last_prediction;
+
+document.getElementById("currentAttack").innerHTML=data.current_attack;
+
+let html="";
+
+data.logs.forEach(function(log){
+
+html+=`
+
+<div>
+
+[${log.time}]
+
+${log.source_ip}
+
+→
+
+${log.prediction}
+
+(${log.confidence}%)
+
+</div>
+
+`;
+
+});
+
+document.getElementById("trafficLog").innerHTML=html;
+
+});
+
+}
+
+setInterval(refreshTraffic,1000);
+
+</script>
+
+{% endblock %}

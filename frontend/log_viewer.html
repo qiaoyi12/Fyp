@@ -54,7 +54,7 @@
       {% else %}
       <tr>
         <td colspan="6" style="color:#2A4A6A;padding:20px 12px;font-family:'JetBrains Mono',monospace;">
-          No log entries found.
+          {% if no_assignments %}No analyses assigned to you yet.{% else %}No log entries found.{% endif %}
         </td>
       </tr>
       {% endfor %}

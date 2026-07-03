@@ -1,5 +1,6 @@
 # Handles uploaded data, analysis, alerts, logs, and report summary.
 import json
+import time
 from datetime import timedelta
 from backend.src.database.models import Alert, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
 from backend.src.database.db import db
@@ -14,6 +15,13 @@ def _get_assigned_analysis_ids(analyst_id):
     """Returns list of analysis_ids assigned to this SOC Analyst."""
     assignments = AnalysisAssignment.query.filter_by(analyst_id=analyst_id).all()
     return [a.analysis_id for a in assignments]
+
+
+def has_no_assignments(user_id, role):
+    """True only when this SOC Analyst has zero analyses assigned to them."""
+    if role != 'analyst':
+        return False
+    return len(_get_assigned_analysis_ids(user_id)) == 0
 
 
 def _alert_query(user_id, role):
@@ -124,6 +132,8 @@ def run_analysis(file_ids, user_id):
     if not uploads:
         return None, 'File not found.', None
 
+    start_time = time.time()
+
     processed_files = []
     combined_results = []
     global_row = 0
@@ -145,6 +155,8 @@ def run_analysis(file_ids, user_id):
         processed_files.append((upload, X))
 
     metrics = _estimate_model_metrics(combined_results)
+    elapsed_seconds = round(time.time() - start_time, 2)
+    metrics['response_time_seconds'] = elapsed_seconds
     summary = get_summary(combined_results)
     by_label, by_sev = summary['by_label'], summary['by_severity']
 
