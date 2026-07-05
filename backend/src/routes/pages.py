@@ -169,6 +169,21 @@ def threat_detail(alert_id):
     return render_template('threat_detail.html',
         alert=alert.to_dict(), user=session['user'], role=session['role'])
 
+from flask import request
+
+@pages_bp.route('/alerts/<int:alert_id>/tag', methods=['POST'])
+@login_required
+def update_alert_tag(alert_id):
+    tag = request.form.get("tag")
+
+    data_service.update_alert_tag(alert_id, tag)
+
+    return redirect(url_for(
+        'pages.alert_feed',
+        severity=request.args.get('severity', 'all'),
+        type=request.args.get('type', 'all')
+    ))
+
 
 @pages_bp.route('/logs')
 @login_required

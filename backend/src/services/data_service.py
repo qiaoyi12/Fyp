@@ -228,6 +228,13 @@ def get_alert_feed(user_id, role, severity, attack_type):
 def get_alert_detail(user_id, role, alert_id):
     return _alert_query(user_id, role).filter_by(id=alert_id).first()
 
+def update_alert_tag(alert_id, tag):
+    alert = Alert.query.get(alert_id)
+
+    if alert:
+        alert.tag = tag
+        db.session.commit()
+
 
 # ── LOGS ──────────────────────────────────────────────────────
 def get_logs(user_id, role, filter_type):

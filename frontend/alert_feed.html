@@ -15,27 +15,32 @@
     placeholder="Search alerts by IP, type, description..."
     onkeyup="filterAlerts()"
   />
+
   <a href="/alerts?severity=high&type={{ attack_type }}" class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
   <a href="/alerts?severity=medium&type={{ attack_type }}" class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
   <a href="/alerts?severity=low&type={{ attack_type }}" class="f-btn low {% if severity == 'low' %}active{% endif %}">Low</a>
 
   <select class="f-btn" id="type-filter" onchange="applyTypeFilter()">
-    <option value="all"         {% if attack_type == 'all' %}selected{% endif %}>All Types</option>
-    <option value="PortScan"    {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
-    <option value="DoS"         {% if attack_type == 'DoS' %}selected{% endif %}>DoS</option>
-    <option value="DDoS"        {% if attack_type == 'DDoS' %}selected{% endif %}>DDoS</option>
-    <option value="Web Attack"  {% if attack_type == 'Web Attack' %}selected{% endif %}>Web Attack</option>
+    <option value="all" {% if attack_type == 'all' %}selected{% endif %}>All Types</option>
+    <option value="PortScan" {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
+    <option value="DoS" {% if attack_type == 'DoS' %}selected{% endif %}>DoS</option>
+    <option value="DDoS" {% if attack_type == 'DDoS' %}selected{% endif %}>DDoS</option>
+    <option value="Web Attack" {% if attack_type == 'Web Attack' %}selected{% endif %}>Web Attack</option>
     <option value="Bot/Patator" {% if attack_type == 'Bot/Patator' %}selected{% endif %}>Bot/Patator</option>
     <option value="Rare/Others" {% if attack_type == 'Rare/Others' %}selected{% endif %}>Rare/Others</option>
   </select>
 </div>
 
-<!--ALERT rows-->
+<!-- ALERT ROWS -->
 <div id="alert-list">
   {% for alert in alerts %}
-  <a href="/alerts/{{ alert.id }}"
-     class="alert-row"
-     data-prediction="{{ alert.prediction }}">
+
+  <div
+    class="alert-row"
+    data-prediction="{{ alert.prediction }}"
+    onclick="window.location.href='/alerts/{{ alert.id }}'"
+    style="cursor:pointer;"
+  >
 
     <span class="sev-badge sev-{{ alert.severity }}">
       {{ alert.severity.upper() }}
@@ -43,11 +48,16 @@
 
     <div class="alert-main">
       <div class="a-title">{{ alert.prediction }} Detected</div>
+
       <div class="a-meta">{{ alert.reason }}</div>
+
       <div class="a-meta">
-        XGB: {{ alert.xgb_vote }} &nbsp;·&nbsp; RF: {{ alert.rf_vote }}
+        XGB: {{ alert.xgb_vote }}
         &nbsp;·&nbsp;
-        <span style="color: {% if alert.consensus == '✓ Consensus' %}#1DB954{% else %}#F39C12{% endif %}">
+        RF: {{ alert.rf_vote }}
+        &nbsp;·&nbsp;
+
+        <span style="color:{% if alert.consensus == '✓ Consensus' %}#1DB954{% else %}#F39C12{% endif %}">
           {{ alert.consensus }}
         </span>
       </div>
@@ -58,9 +68,49 @@
       <div class="a-time">{{ alert.time }}</div>
     </div>
 
-  </a>
+    <!-- TAG -->
+    <div class="a-tag"
+     onclick="event.stopPropagation();"
+     onmousedown="event.stopPropagation();">
+
+    <form action="{{ url_for('pages.update_alert_tag', alert_id=alert.id) }}"
+          method="POST">
+
+        <select
+            class="tag-select"
+            name="tag"
+            onclick="event.stopPropagation();"
+            onmousedown="event.stopPropagation();"
+            onchange="this.form.submit()">
+
+            <option value="Unreviewed" {% if alert.tag=='Unreviewed' %}selected{% endif %}> Unreviewed</option>
+
+            <option value="Needs Action" {% if alert.tag=='Needs Action' %}selected{% endif %}> Needs Action</option>
+
+            <option value="Monitoring" {% if alert.tag=='Monitoring' %}selected{% endif %}> Monitoring</option>
+
+            <option value="Resolved" {% if alert.tag=='Resolved' %}selected{% endif %}> Resolved</option>
+
+            <option value="False Positive" {% if alert.tag=='False Positive' %}selected{% endif %}>✔ False Positive</option>
+
+        </select>
+
+    </form>
+
+</div>
+
+  </div>
+
   {% else %}
-  <div class="empty-alerts">{% if no_assignments %}No analyses assigned to you yet.{% else %}No alerts found.{% endif %}</div>
+
+  <div class="empty-alerts">
+    {% if no_assignments %}
+      No analyses assigned to you yet.
+    {% else %}
+      No alerts found.
+    {% endif %}
+  </div>
+
   {% endfor %}
 </div>
 
@@ -72,19 +122,25 @@
 
 {% block scripts %}
 <script>
-  function applyTypeFilter() {
-    const type = document.getElementById('type-filter').value
-    const severity = '{{ severity }}'
-    window.location.href = `/alerts?severity=${severity}&type=${encodeURIComponent(type)}`
-  }
 
-  function filterAlerts() {
-    const search = document.getElementById('search-input').value.toLowerCase()
-    const rows = document.querySelectorAll('#alert-list .alert-row')
+function applyTypeFilter() {
+    const type = document.getElementById('type-filter').value;
+    const severity = '{{ severity }}';
+    window.location.href = `/alerts?severity=${severity}&type=${encodeURIComponent(type)}`;
+}
+
+function filterAlerts() {
+    const search = document.getElementById('search-input').value.toLowerCase();
+    const rows = document.querySelectorAll('#alert-list .alert-row');
+
     rows.forEach(row => {
-      const prediction = row.dataset.prediction.toLowerCase()
-      row.style.display = prediction.includes(search) ? 'flex' : 'none'
-    })
-  }
+        const prediction = row.dataset.prediction.toLowerCase();
+
+        row.style.display = prediction.includes(search)
+            ? 'flex'
+            : 'none';
+    });
+}
+
 </script>
 {% endblock %}

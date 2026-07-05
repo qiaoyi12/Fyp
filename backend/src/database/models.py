@@ -127,6 +127,7 @@ class Alert(db.Model):
     flow_duration  = db.Column(db.Float)
     flow_pkts_s    = db.Column(db.Float)
     source_ip      = db.Column(db.String(45))
+    tag = db.Column(db.String(30), default="Unreviewed")
 
     def to_dict(self):
         reason = {
@@ -154,6 +155,7 @@ class Alert(db.Model):
             'xgb_vote':    self.xgb_vote,
             'rf_vote':     self.rf_vote,
             'consensus':   '✓ Consensus' if self.xgb_vote == self.rf_vote else '⚠ Conflict',
+            'tag':         self.tag
         }
 
 
