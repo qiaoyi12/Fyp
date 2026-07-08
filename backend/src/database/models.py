@@ -1,3 +1,4 @@
+# For database columns and tables
 from datetime import datetime
 from .db import db ,bcrypt
 
@@ -128,6 +129,7 @@ class Alert(db.Model):
     flow_pkts_s    = db.Column(db.Float)
     source_ip      = db.Column(db.String(45))
     tag = db.Column(db.String(30), default="Unreviewed")
+    remarks        = db.Column(db.Text, default='')
 
     def to_dict(self):
         reason = {
@@ -155,7 +157,8 @@ class Alert(db.Model):
             'xgb_vote':    self.xgb_vote,
             'rf_vote':     self.rf_vote,
             'consensus':   '✓ Consensus' if self.xgb_vote == self.rf_vote else '⚠ Conflict',
-            'tag':         self.tag
+            'tag':         self.tag,
+            'remarks':     self.remarks or ''
         }
 
 

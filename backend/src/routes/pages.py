@@ -184,6 +184,13 @@ def update_alert_tag(alert_id):
         type=request.args.get('type', 'all')
     ))
 
+@pages_bp.route('/alerts/<int:alert_id>/remarks', methods=['POST'])
+@login_required
+def update_alert_remarks(alert_id):
+    remarks = request.form.get('remarks', '')
+    data_service.update_alert_remarks(alert_id, remarks)
+    return redirect(request.referrer or url_for('pages.alert_feed'))
+
 
 @pages_bp.route('/logs')
 @login_required
@@ -281,21 +288,34 @@ def unassign():
     return redirect(url_for('pages.assign'))
 
 
-@pages_bp.route('/report')
+@pages_bp.route('/attackingIPS')
 @login_required
-def report_analysis():
+def attacking_ips():
     date_from = _parse_date(request.args.get('from'))
     date_to = _parse_date(request.args.get('to'))
-    report = data_service.get_report_data(
-        session['user_id'], session['role'],
-        date_from=date_from, date_to=date_to
+
+    attacking_ips = data_service.get_report_data(
+        session['user_id'],
+        session['role'],
+        date_from=date_from,
+        date_to=date_to
     )
-    no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
-    return render_template('report_analysis.html',
-        report=report,
+
+    no_assignments = data_service.has_no_assignments(
+        session['user_id'],
+        session['role']
+    )
+
+    return render_template(
+        'attacking_ips.html',
+        attacking_ips=attacking_ips,
         no_assignments=no_assignments,
-        date_from=request.args.get('from', ''), date_to=request.args.get('to', ''),
-        active_page='report', user=session['user'], role=session['role'])
+        date_from=request.args.get('from', ''),
+        date_to=request.args.get('to', ''),
+        active_page='attackingIPS',
+        user=session['user'],
+        role=session['role']
+    )
 
 
 @pages_bp.route('/blacklist/add', methods=['POST'])

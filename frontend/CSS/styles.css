@@ -145,6 +145,7 @@ body {
   border: 1px solid #0E1A2A; border-radius: 7px;
   margin-bottom: 6px; cursor: pointer; transition: all 0.15s;
   text-decoration: none; color: inherit;
+  position: sticky;
 }
 .alert-row:hover { border-color: #2A4A6A; background: #101828; }
 .a-desc  { flex: 1; font-size: 11px; color: #7A9AB8; font-weight: 500; }
@@ -169,6 +170,28 @@ body {
 .f-btn.high    { color: #E74C3C; border-color: #1A0808; }
 .f-btn.medium  { color: #F39C12; border-color: #1A1000; }
 .f-btn.low     { color: #1DB954; border-color: #081208; }
+
+.a-remarks {
+    margin: 10px;
+}
+
+.remarks-input {
+    background: #1d2330;
+    color: white;
+    border: 1px solid #4d5b7c;
+    border-radius: 20px;
+    padding: 8px 14px;
+    font-size: 13px;
+    outline: none;
+    transition: .2s;
+    min-width: 160px;
+}
+
+.remarks-input:hover,
+.remarks-input:focus {
+    border-color: #4ea5ff;
+    box-shadow: 0 0 8px rgba(78,165,255,.35);
+}
 
 /* ── LOG TABLE ── */
 .log-table { width: 100%; border-collapse: collapse; font-size: 10px; font-family: 'JetBrains Mono', monospace; }

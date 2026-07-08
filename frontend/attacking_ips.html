@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Report Analysis — IDS{% endblock %}
-{% block page_title %}Report Analysis{% endblock %}
+{% block title %}Top Attacking IPs — IDS{% endblock %}
+{% block page_title %}Top Attacking IPs{% endblock %}
 {% block status_text %}Live{% endblock %}
 
 {% block content %}
@@ -10,18 +10,18 @@
 <div class="filter-bar">
   <input type="date" class="f-btn" id="date-from" value="{{ date_from }}" onchange="setParam('from', this.value)" title="From date">
   <input type="date" class="f-btn" id="date-to" value="{{ date_to }}" onchange="setParam('to', this.value)" title="To date">
-  <a href="/report" class="f-btn">Clear Filters</a>
+  <a href="/attackingIPS" class="f-btn">Clear Filters</a>
 </div>
 
 <!-- SUMMARY -->
 <div class="metric-grid-3" style="margin-top:14px">
   <div class="metric-card">
     <div class="m-label">Total Alerts</div>
-    <div class="m-value blue">{{ report.total_alerts }}</div>
+    <div class="m-value blue">{{ attacking_ips.total_alerts }}</div>
   </div>
   <div class="metric-card">
     <div class="m-label">Unique Source IPs</div>
-    <div class="m-value">{{ report.total_unique_ips }}</div>
+    <div class="m-value">{{ attacking_ips.total_unique_ips }}</div>
   </div>
   <div class="metric-card">
     <div class="m-label">Date Range</div>
@@ -32,9 +32,9 @@
 </div>
 
 <!-- TOP OFFENDING IPs -->
-<div class="sec-title">Top {{ report.top_ips|length }} Source IPs by Attack Volume</div>
+<div class="sec-title">Top {{ attacking_ips.top_ips|length }} Source IPs by Attack Volume</div>
 <div id="top-ip-list">
-  {% for entry in report.top_ips %}
+  {% for entry in attacking_ips.top_ips %}
   <div class="alert-row" style="cursor:default">
     <span class="sev-badge sev-{{ entry.severity }}">{{ entry.severity.upper() }}</span>
 

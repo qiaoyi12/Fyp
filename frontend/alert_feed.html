@@ -31,6 +31,29 @@
   </select>
 </div>
 
+
+<!-- COLUMN HEADERS -->
+<!-- COLUMN HEADERS -->
+<div class="alert-row"
+     style="position:sticky; top:0; z-index:100; background:#031c35; cursor:default; font-weight:600; color:#5A7A9A; font-size:11px; text-transform:uppercase; border-bottom:1px solid #1A3A5A;">
+
+  <span class="level" style="background:transparent;">Severity</span>
+
+  <div class="alert-main">
+    <div>Attack Type</div>
+  </div>
+
+  <div class="confidence-level" style="margin-left:515px; text-align:center;">
+    <div>Model</div>
+    <div>Confidence Level</div>
+  </div>
+
+  <div class="a-right" style="margin-left:auto; text-align:right;">
+    <div>Status</div>
+  </div>
+
+</div>
+
 <!-- ALERT ROWS -->
 <div id="alert-list">
   {% for alert in alerts %}
@@ -41,6 +64,9 @@
     onclick="window.location.href='/alerts/{{ alert.id }}'"
     style="cursor:pointer;"
   >
+  <div class="a-title">
+   #{{ alert.id }} 
+  </div>
 
     <span class="sev-badge sev-{{ alert.severity }}">
       {{ alert.severity.upper() }}
@@ -63,11 +89,12 @@
       </div>
     </div>
 
-    <div class="a-right">
+    <div class="a-right" style="margin-left:auto;text-align:right;">
       <div class="a-conf">{{ alert.confidence }}%</div>
       <div class="a-time">{{ alert.time }}</div>
     </div>
 
+    <!-- TAG -->
     <!-- TAG -->
     <div class="a-tag"
      onclick="event.stopPropagation();"
@@ -99,8 +126,31 @@
 
 </div>
 
-  </div>
+</div>
 
+    <!-- REMARKS -->
+    <div class="a-remarks"
+     onclick="event.stopPropagation();"
+     onmousedown="event.stopPropagation();">
+
+    <form action="{{ url_for('pages.update_alert_remarks', alert_id=alert.id) }}"
+          method="POST"
+          onsubmit="event.stopPropagation();">
+
+        <input
+            type="text"
+            name="remarks"
+            class="remarks-input"
+            placeholder="Add remark..."
+            value="{{ alert.remarks }}"
+            onclick="event.stopPropagation();"
+            onmousedown="event.stopPropagation();"
+            onblur="this.form.submit()"
+        />
+
+    </form>
+
+</div>
   {% else %}
 
   <div class="empty-alerts">

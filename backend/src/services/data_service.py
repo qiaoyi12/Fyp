@@ -235,6 +235,12 @@ def update_alert_tag(alert_id, tag):
         alert.tag = tag
         db.session.commit()
 
+def update_alert_remarks(alert_id, remarks):
+    alert = Alert.query.get(alert_id)
+    if alert:
+        alert.remarks = remarks
+        db.session.commit()
+
 
 # ── LOGS ──────────────────────────────────────────────────────
 def get_logs(user_id, role, filter_type):
