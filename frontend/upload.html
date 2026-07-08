@@ -19,15 +19,34 @@
     <div class="up-title">Drag and drop log files here</div>
     <div class="up-sub">Supports .csv files · Select multiple files at once</div>
     <div class="up-btn" style="margin-top:12px">Browse Files</div>
-    <input
-      type="file"
-      id="file-input"
-      name="files"
-      accept=".csv"
-      multiple
-      style="display:none"
-      onchange="showSelected(this)"
-    />
+    <input type="file" id="file-input" name="files" accept=".csv" multiple style="display:none"
+      onchange="uploadFile(this)" />
+  </div>
+
+  <div id="loading-bar" style="display:none;
+<div id=" loading-bar" style="display:none;margin-top:10px;">
+
+    <div id="loading-text" style="margin-bottom:6px;
+                color:#3D8EFF;
+                font-size:10px;
+                font-family:'JetBrains Mono',monospace;">
+      Processing...
+    </div>
+
+    <div style="width:100%;
+                height:6px;
+                background:#1A3050;
+                border-radius:4px;
+                overflow:hidden;">
+
+      <div id="loading-fill" style="width:0%;
+                    height:100%;
+                    background:#3D8EFF;
+                    transition:width .2s;">
+      </div>
+
+    </div>
+
   </div>
 
   <div id="selected-file" style="display:none;margin-bottom:14px">
@@ -35,19 +54,10 @@
       <span id="file-name"></span>
       <span style="color:#3D8EFF">Ready to upload</span>
     </div>
-    <div class="prog-track">
-      <div class="prog-fill" style="width:100%"></div>
-    </div>
-    <button type="submit"
-      style="margin-top:10px;font-size:9px;padding:6px 16px;border-radius:5px;
-             background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
-             color:#3D8EFF;font-family:'JetBrains Mono',monospace;cursor:pointer;">
-      Upload Files
-    </button>
   </div>
 </form>
 
-<form method="POST" action="/analyse" style="margin-top:10px">
+<form method="POST" action="/analyse" id="analyse-form" style="margin-top:10px">
   <div class="sec-title">Upload History</div>
   {% for item in history %}
   <div class="upload-hist-row">
@@ -69,8 +79,7 @@
   </div>
   {% endfor %}
   {% if history %}
-  <button type="submit"
-    style="margin-top:10px;font-size:9px;padding:6px 16px;border-radius:5px;
+  <button type="submit" style="margin-top:10px;font-size:9px;padding:6px 16px;border-radius:5px;
            background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
            color:#3D8EFF;font-family:'JetBrains Mono',monospace;cursor:pointer;">
     Analyse Selected
@@ -82,12 +91,19 @@
 
 {% block scripts %}
 <script>
-  function showSelected(input) {
-    if (input.files && input.files.length) {
-      const names = Array.from(input.files).map(file => file.name).join(', ')
-      document.getElementById('file-name').textContent = names
-      document.getElementById('selected-file').style.display = 'block'
-    }
+  function uploadFile(input) {
+
+    if (!input.files.length) return;
+
+    const names = Array.from(input.files).map(file => file.name).join(", ");
+
+    document.getElementById("file-name").textContent = names;
+    document.getElementById("selected-file").style.display = "block";
+
+    startLoading("Uploading CSV...");
+
+    // Automatically submit the form
+    document.getElementById("upload-form").submit();
   }
 
   const zone = document.querySelector('.upload-zone')
@@ -109,5 +125,41 @@
       document.getElementById('selected-file').style.display = 'block'
     }
   })
+
+  function startLoading(message) {
+
+    document.getElementById("loading-bar").style.display = "block";
+
+    document.getElementById("loading-text").innerHTML = message;
+
+    document.getElementById("loading-fill").style.width = "0%";
+
+    let width = 0;
+
+    const interval = setInterval(function () {
+
+      if (width >= 90) {
+        clearInterval(interval);
+        return;
+      }
+
+      width += 5;
+      document.getElementById("loading-fill").style.width = width + "%";
+
+    }, 150);
+
+  }
+
+  document.getElementById("upload-form").addEventListener("submit", function () {
+
+    startLoading("Uploading CSV...");
+
+  });
+
+  document.getElementById("analyse-form").addEventListener("submit", function () {
+
+    startLoading("Running AI analysis...");
+
+  });
 </script>
 {% endblock %}

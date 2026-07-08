@@ -22,8 +22,7 @@
   <label style="display:block;cursor:pointer">
     <div class="upload-hist-row" style="gap:10px">
 
-      <input type="radio" name="analysis_id" value="{{ a.id }}" required
-        style="accent-color:#3D8EFF">
+      <input type="radio" name="analysis_id" value="{{ a.id }}" required style="accent-color:#3D8EFF">
 
       <div style="flex:1">
         <div style="font-size:11px;color:#c8dff0;font-family:'JetBrains Mono',monospace">
@@ -39,19 +38,21 @@
       {% if a.is_assigned %}
       <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
         <span style="font-size:9px;color:#1DB954;font-family:'JetBrains Mono',monospace">✓</span>
+
         {% for analyst in a.assigned_to %}
-        <form action="/assign/remove" method="POST" style="display:inline;margin:0">
-          <input type="hidden" name="analysis_id" value="{{ a.id }}">
-          <input type="hidden" name="analyst_id" value="{{ analyst.analyst_id }}">
-          <button type="submit"
-            style="font-size:9px;font-family:'JetBrains Mono',monospace;
-                   background:rgba(231,76,60,0.08);border:1px solid #1A0808;
-                   color:#c8dff0;border-radius:4px;padding:2px 6px;cursor:pointer;
-                   display:flex;align-items:center;gap:4px">
-            {{ analyst.username }}
-            <span style="color:#E74C3C">✕</span>
-          </button>
-        </form>
+        <button type="button" onclick="removeAssignment({{ a.id }}, {{ analyst.analyst_id }})" style="font-size:9px;font-family:'JetBrains Mono',monospace;
+           background:rgba(231,76,60,0.08);
+           border:1px solid #1A0808;
+           color:#c8dff0;
+           border-radius:4px;
+           padding:2px 6px;
+           cursor:pointer;
+           display:flex;
+           align-items:center;
+           gap:4px">
+          {{ analyst.username }}
+          <span style="color:#E74C3C">✕</span>
+        </button>
         {% endfor %}
       </div>
       {% else %}
@@ -77,8 +78,7 @@
     <label style="cursor:pointer">
       <div class="f-btn" id="analyst-btn-{{ analyst.id }}"
         style="display:flex;align-items:center;gap:6px;padding:6px 12px">
-        <input type="checkbox" name="analyst_ids" value="{{ analyst.id }}"
-          style="accent-color:#3D8EFF"
+        <input type="checkbox" name="analyst_ids" value="{{ analyst.id }}" style="accent-color:#3D8EFF"
           onchange="toggleAnalystBtn({{ analyst.id }}, this.checked)">
         <div class="sb-avatar" style="width:20px;height:20px;font-size:8px;line-height:20px">
           {{ analyst.username[:2].upper() }}
@@ -90,24 +90,28 @@
   </div>
   {% else %}
   <div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:12px 0">
-    No SOC Analyst accounts found. 
+    No SOC Analyst accounts found.
   </div>
   {% endif %}
 
   <!-- SUBMIT -->
   {% if analyses and analysts %}
-  <button type="submit"
-    style="margin-top:6px;font-size:9px;padding:6px 16px;border-radius:5px;
+  <button type="submit" style="margin-top:6px;font-size:9px;padding:6px 16px;border-radius:5px;
            background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
            color:#3D8EFF;font-family:'JetBrains Mono',monospace;cursor:pointer;">
     Assign Analysis →
   </button>
-  {% endif %}
+{% endif %}
+</form>
 
+<form id="remove-form" method="POST" action="/assign/remove" style="display:none;">
+  <input type="hidden" id="remove-analysis-id" name="analysis_id">
+  <input type="hidden" id="remove-analyst-id" name="analyst_id">
 </form>
 
 {% endblock %}
 
+#javascript fucntion
 {% block scripts %}
 <script>
   function toggleAnalystBtn(id, checked) {
@@ -121,6 +125,22 @@
       btn.style.color = ''
       btn.style.borderColor = ''
     }
+  }
+
+  function removeAssignment(analysisId, analystId) {
+    document.getElementById("remove-analysis-id").value = analysisId;
+    document.getElementById("remove-analyst-id").value = analystId;
+    document.getElementById("remove-form").submit();
+  }
+
+  function removeAssignment(analysisId, analystId) {
+
+    if (!confirm("Remove this analyst from the analysis?")) {
+        return;
+    }
+    document.getElementById("remove-analysis-id").value = analysisId;
+    document.getElementById("remove-analyst-id").value = analystId;
+    document.getElementById("remove-form").submit();
   }
 </script>
 {% endblock %}

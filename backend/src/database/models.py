@@ -86,7 +86,7 @@ class AnalysisResult(db.Model):
     assignments = db.relationship('AnalysisAssignment', backref='analysis', lazy=True)
 
 
-# links an analysis run to the SOC Analyst it was assigned to ( havent work on this part)
+# links an analysis run to the SOC Analyst it was assigned to 
 class AnalysisAssignment(db.Model):
     __tablename__ = 'analysis_assignments'
 
@@ -131,6 +131,13 @@ class Alert(db.Model):
     tag = db.Column(db.String(30), default="Unreviewed")
     remarks        = db.Column(db.Text, default='')
 
+    detail = db.relationship(
+        "AlertDetail",
+        backref="alert",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
+
     def to_dict(self):
         reason = {
             'PortScan':    f'Port probing on port {self.dest_port} · {self.flow_pkts_s} pkts/s',
@@ -160,6 +167,36 @@ class Alert(db.Model):
             'tag':         self.tag,
             'remarks':     self.remarks or ''
         }
+    
+#alert details model
+class AlertDetail(db.Model):
+    __tablename__ = "alert_details"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    alert_id = db.Column(
+        db.Integer,
+        db.ForeignKey("alerts.id"),
+        nullable=False,
+        unique=True
+    )
+
+    flow_duration = db.Column(db.Float)
+    flow_bytes_s = db.Column(db.Float)
+    flow_packets_s = db.Column(db.Float)
+
+    total_fwd_packets = db.Column(db.Integer)
+    total_backward_packets = db.Column(db.Integer)
+
+    packet_length_mean = db.Column(db.Float)
+    average_packet_size = db.Column(db.Float)
+
+    syn_flag_count = db.Column(db.Integer)
+    ack_flag_count = db.Column(db.Integer)
+    psh_flag_count = db.Column(db.Integer)
+
+    init_win_bytes_forward = db.Column(db.Integer)
+    init_win_bytes_backward = db.Column(db.Integer)
 
 
 # top attacking source ip addresses the IT Admin maintains alerts from these IPs

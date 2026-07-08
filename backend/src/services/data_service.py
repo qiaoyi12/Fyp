@@ -2,7 +2,7 @@
 import json
 import time
 from datetime import timedelta
-from backend.src.database.models import Alert, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
+from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
 from backend.src.database.db import db
 from backend.src.ml.preprocess import preprocess_csv
 from backend.src.ml.predict import predict, get_summary, estimate_model_metrics
@@ -199,19 +199,52 @@ def run_analysis(file_ids, user_id):
 
     frame_lookup = {upload.id: X for upload, X in processed_files}
     for r in selected:
-        row_data = frame_lookup[r['source_upload_id']].iloc[r['source_row']]
-        row_idx = r['row']
-        source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
-        db.session.add(Alert(
-            analysis_id=record.id, user_id=user_id, row_index=row_idx,
-            prediction=r['prediction'], severity=r['severity'], confidence=r['confidence'],
-            xgb_vote=r['xgb_vote'], rf_vote=r['rf_vote'],
-            dest_port=int(row_data['Destination Port']),
-            flow_duration=round(float(row_data['Flow Duration']), 2),
-            flow_pkts_s=round(float(row_data['Flow Packets/s']), 2),
-            source_ip=source_ip,
-        ))
-    db.session.commit()
+                    row_data = frame_lookup[r['source_upload_id']].iloc[r['source_row']]
+                    row_idx = r['row']
+                    source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
+
+                    alert = Alert(
+                        analysis_id=record.id,
+                        user_id=user_id,
+                        row_index=row_idx,
+                        prediction=r['prediction'],
+                        severity=r['severity'],
+                        confidence=r['confidence'],
+                        xgb_vote=r['xgb_vote'],
+                        rf_vote=r['rf_vote'],
+                        dest_port=int(row_data['Destination Port']),
+                        flow_duration=round(float(row_data['Flow Duration']), 2),
+                        flow_pkts_s=round(float(row_data['Flow Packets/s']), 2),
+                        source_ip=source_ip,
+                    )
+
+                    db.session.add(alert)
+                    db.session.flush()      # Generates alert.id
+
+                    detail = AlertDetail(
+                        alert_id=alert.id,
+
+                        flow_duration=round(float(row_data['Flow Duration']), 2),
+                        flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
+                        flow_packets_s=round(float(row_data['Flow Packets/s']), 2),
+
+                        total_fwd_packets=int(row_data['Total Fwd Packets']),
+                        total_backward_packets=int(row_data['Total Backward Packets']),
+
+                        packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
+                        average_packet_size=round(float(row_data['Average Packet Size']), 2),
+
+                        syn_flag_count=int(row_data['SYN Flag Count']),
+                        ack_flag_count=int(row_data['ACK Flag Count']),
+                        psh_flag_count=int(row_data['PSH Flag Count']),
+
+                        init_win_bytes_forward=int(row_data['Init_Win_bytes_forward']),
+                        init_win_bytes_backward=int(row_data['Init_Win_bytes_backward']),
+                    )
+
+                    db.session.add(detail)
+
+                    db.session.commit()
     return record, None, metrics
 
 
@@ -224,9 +257,16 @@ def get_alert_feed(user_id, role, severity, attack_type):
         query = query.filter_by(prediction=attack_type)
     return [a.to_dict() for a in query.limit(100).all()]
 
-
 def get_alert_detail(user_id, role, alert_id):
-    return _alert_query(user_id, role).filter_by(id=alert_id).first()
+    alert = _alert_query(user_id, role).filter_by(id=alert_id).first()
+
+    if not alert:
+        return None
+
+    return {
+        "alert": alert,
+        "detail": alert.detail
+    }
 
 def update_alert_tag(alert_id, tag):
     alert = Alert.query.get(alert_id)

@@ -100,21 +100,27 @@ def logout():
     session.clear()
     return redirect(url_for('pages.login'))
 
-
+from flask import flash
+# admin required is only for soc analysts
 # admin required is only for soc analysts
 @pages_bp.route('/analyse', methods=['POST'])
 @admin_required
 def analyse_selected_files():
     file_ids = request.form.getlist('file_ids')
+
     if not file_ids:
         return redirect(url_for('pages.upload'))
-    # not sure later check
+
     record, error, metrics = data_service.run_analysis(file_ids, session['user_id'])
+
     if error:
         return redirect(url_for('pages.upload'))
-    session['last_model_metrics'] = metrics or {}
-    return redirect(url_for('pages.dashboard'))
 
+    session['last_model_metrics'] = metrics or {}
+
+    flash("Analysis completed successfully!")
+
+    return redirect(url_for('pages.dashboard'))
 
 @pages_bp.route('/analyse/<int:file_id>', methods=['POST'])
 @admin_required
@@ -159,15 +165,27 @@ def alert_feed():
         no_assignments=no_assignments,
         user=session['user'], role=session['role'])
 
-
 @pages_bp.route('/alerts/<int:alert_id>')
 @login_required
 def threat_detail(alert_id):
-    alert = data_service.get_alert_detail(session['user_id'], session['role'], alert_id)
-    if not alert:
+
+    result = data_service.get_alert_detail(
+        session['user_id'],
+        session['role'],
+        alert_id
+    )
+
+    if not result:
         return redirect(url_for('pages.alert_feed'))
-    return render_template('threat_detail.html',
-        alert=alert.to_dict(), user=session['user'], role=session['role'])
+
+    return render_template(
+        "threat_detail.html",
+        alert=result["alert"],
+        detail=result["detail"],
+        user=session["user"],
+        role=session["role"]
+    )
+
 
 from flask import request
 

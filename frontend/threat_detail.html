@@ -19,7 +19,7 @@
 <div class="detail-grid">
   <div class="d-card">
     <div class="d-label">Timestamp</div>
-    <div class="d-value">{{ alert.time }}</div>
+    <div class="d-value">{{ alert.created_at.strftime('%d/%m/%Y %H:%M:%S')  }}</div>
   </div>
   <div class="d-card">
     <div class="d-label">Attack Type</div>
@@ -46,6 +46,71 @@
       {{ alert.confidence }}%
     </span>
   </div>
+</div>
+<div class="sec-title">Packet Information</div>
+
+<div class="packet-box">
+
+    <div class="packet-section-title">Network Flow</div>
+
+    <div class="packet-row">
+        <span>Destination Port</span>
+        <span>{{ alert.dest_port }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Flow Duration</span>
+        <span>{{ detail.flow_duration }} ms</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Flow Packets/s</span>
+        <span>{{ detail.flow_packets_s }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Flow Bytes/s</span>
+        <span>{{ detail.flow_bytes_s }}</span>
+    </div>
+
+    <hr class="packet-divider">
+
+    <div class="packet-section-title">Packet Statistics</div>
+
+    <div class="packet-row">
+        <span>Forward Packets</span>
+        <span>{{ detail.total_fwd_packets }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Backward Packets</span>
+        <span>{{ detail.total_backward_packets }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Average Packet Size</span>
+        <span>{{ detail.average_packet_size }} bytes</span>
+    </div>
+
+    <hr class="packet-divider">
+
+    <div class="packet-section-title">TCP Flags</div>
+
+    <div class="packet-row">
+        <span>SYN Count</span>
+        <span>{{ detail.syn_flag_count }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>ACK Count</span>
+        <span>{{ detail.ack_flag_count }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>PSH Count</span>
+        <span>{{ detail.psh_flag_count }}</span>
+    </div>
+
 </div>
 
 {% endblock %}

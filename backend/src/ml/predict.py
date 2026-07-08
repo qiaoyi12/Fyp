@@ -82,12 +82,14 @@ def get_model_metrics():
     return metrics
 
 
-# x is noted as preprocess csv file and use xgb model to predict every row
+# x is each row of the csv file, and this function will return the prediction for each row by going through the ml models
 def predict(X):
     X_scaled = scaler.transform(X)
 
     # XGBoost predictions
+    # first used the scalar
     xgb_proba = xgb_model.predict_proba(X_scaled)
+    # it will then run through all the possible attack types and return the one with the highest probability
     xgb_preds = np.argmax(xgb_proba, axis=1)
     xgb_conf = np.max(xgb_proba, axis=1)
 
@@ -97,7 +99,7 @@ def predict(X):
     rf_conf = np.max(rf_proba, axis=1)
 
     # isolation forest flags rows that look "weird" compared to normal traffic,
-    # even if XGB/RF don't recognise them as a known attack type
+    # even if XGB/RF don't recognise them as a known attack type ( BENIGN )
     anomaly_flags = [False] * len(X_scaled)
     if isolation_forest is not None:
         try:

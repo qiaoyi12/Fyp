@@ -237,6 +237,49 @@ body {
 }
 .back-link:hover { color: #8AB4D4; }
 
+
+.packet-box{
+    background:#031225;
+    border:1px solid #1A3A6A;
+    border-radius:8px;
+    padding:18px;
+    margin-top:15px;
+}
+
+.packet-section-title{
+    color:#3D8EFF;
+    font-size:11px;
+    font-weight:bold;
+    text-transform:uppercase;
+    margin-bottom:10px;
+    letter-spacing:1px;
+}
+
+.packet-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 0;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:#c8dff0;
+}
+
+.packet-row span:first-child{
+    color:#7f9bb8;
+}
+
+.packet-row span:last-child{
+    color:#ffffff;
+    font-weight:600;
+}
+
+.packet-divider{
+    border:none;
+    border-top:1px solid #536c92;
+    margin:16px 0;
+}
+
 /* ── UPLOAD PAGE ── */
 .upload-zone {
   border: 1.5px dashed #1A3050; border-radius: 10px;
