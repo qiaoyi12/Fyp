@@ -6,11 +6,11 @@
 
 {% block content %}
 {% with messages = get_flashed_messages() %}
-  {% if messages %}
-    <div class="msg-success" id="flash-message">
-      {{ messages[0] }}
-    </div>
-  {% endif %}
+{% if messages %}
+<div class="msg-success" id="flash-message">
+  {{ messages[0] }}
+</div>
+{% endif %}
 {% endwith %}
 <!-- METRIC CARDS -->
 <div class="metric-grid-4">
@@ -38,20 +38,26 @@
 
 
 <!-- RECENT HIGH SEVERITY ALERTS -->
-  <div class="sec-title">Recent High-Severity Alerts</div>
-  {% for alert in high_alerts %}
-  <a href="/alerts/{{ alert.id }}" class="alert-row">
-    <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
-    <div class="alert-main">
-      <div class="a-title">{{ alert.prediction }} Detected</div>
-      <div class="a-meta">{{ alert.reason }}</div>
-    </div>
-    <div class="a-right">
-      <div class="a-conf">{{ alert.confidence }}%</div>
-      <div class="a-time">{{ alert.time }}</div>
-    </div>
-  </a>
+<div class="sec-title">
+  {% if attack_type == 'all' %}
+    Recent High-Severity Alerts
   {% else %}
+    Recent {{ attack_type }} Alerts
+  {% endif %}
+</div>
+{% for alert in high_alerts %}
+<a href="/alerts/{{ alert.id }}" class="alert-row">
+  <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
+  <div class="alert-main">
+    <div class="a-title">{{ alert.prediction }} Detected</div>
+    <div class="a-meta">{{ alert.reason }}</div>
+  </div>
+  <div class="a-right">
+    <div class="a-conf">{{ alert.confidence }}%</div>
+    <div class="a-time">{{ alert.time }}</div>
+  </div>
+</a>
+{% else %}
 <div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:20px 0;">
   No high severity alerts yet.
 </div>
@@ -61,35 +67,52 @@
 <div class="bottom-grid">
 
   <!-- THREAT DISTRIBUTION PIE CHART -->
+<!-- THREAT DISTRIBUTION PIE CHART -->
   <div class="chart-card">
     <div class="chart-title">Total Threat Type</div>
-    <div class="pie-wrap">
-      <svg width="130" height="130" viewBox="0 0 130 130">
-        <circle cx="65" cy="65" r="52" fill="none" stroke="#0e1a2a" stroke-width="22"/>
+    <div class="pie-wrap" style="position:relative;">
+      <svg width="130" height="130" viewBox="0 0 130 130" id="pie-svg">
+        <circle cx="65" cy="65" r="52" fill="none" stroke="#0e1a2a" stroke-width="22" />
         {% set ns = namespace(offset=0) %}
         {% for item in threat_distribution %}
         {% set dasharray = (item.pct / 100) * 326.7 %}
-        <circle cx="65" cy="65" r="52" fill="none"
-          stroke="{{ item.colour }}" stroke-width="22"
-          stroke-dasharray="{{ dasharray }} {{ 326.7 - dasharray }}"
-          stroke-dashoffset="{{ -ns.offset }}"
-          transform="rotate(-90 65 65)"/>
+        <circle cx="65" cy="65" r="52" fill="none" stroke="{{ item.colour }}" stroke-width="22"
+          stroke-dasharray="{{ dasharray }} {{ 326.7 - dasharray }}" stroke-dashoffset="{{ -ns.offset }}"
+          transform="rotate(-90 65 65)"
+          class="pie-slice" data-type="{{ item.type }}" data-pct="{{ item.pct }}" data-count="{{ item.count }}"
+          data-colour="{{ item.colour }}"
+          style="cursor:pointer; transition: stroke-width 0.15s ease, opacity 0.15s ease;" />
         {% set ns.offset = ns.offset + dasharray %}
         {% endfor %}
-        <text x="65" y="60" text-anchor="middle" fill="#c8dff0"
-        font-family="JetBrains Mono" font-size="14" font-weight="600">{{ metrics.total_threat_types }}</text>
-        <text x="65" y="75" text-anchor="middle" fill="#2a4a6a"
-          font-family="JetBrains Mono" font-size="8">Total</text>
+        <text x="65" y="60" text-anchor="middle" fill="#c8dff0" font-family="JetBrains Mono" font-size="14"
+          font-weight="600" id="pie-center-value">{{ metrics.total_threat_types }}</text>
+        <text x="65" y="75" text-anchor="middle" fill="#2a4a6a" font-family="JetBrains Mono" font-size="8"
+          id="pie-center-label">Total</text>
       </svg>
+
+      <!-- TOOLTIP -->
+      <div id="pie-tooltip" style="
+          position:absolute; display:none; pointer-events:none;
+          background:#03101f; border:1px solid #1A3A5A; border-radius:6px;
+          padding:6px 10px; font-family:'JetBrains Mono',monospace; font-size:11px;
+          color:#c8dff0; white-space:nowrap; z-index:50; box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+      </div>
+
       <div class="pie-legend">
         {% for item in threat_distribution %}
-        <div class="pie-legend-item">
+        <a href="/dashboard?type={{ item.type }}"
+          class="pie-legend-item"
+          data-type="{{ item.type }}"
+          style="text-decoration:none; cursor:pointer; transition: opacity 0.15s ease, transform 0.15s ease; {% if attack_type == item.type %}outline:1px solid {{ item.colour }}; border-radius:4px;{% endif %}">
           <div class="pie-legend-dot" style="background:{{ item.colour }}"></div>
           <div class="pie-legend-label">{{ item.type }}</div>
           <div class="pie-legend-pct" style="color:{{ item.colour }}">{{ item.pct }}% ({{ item.count }})</div>
-        </div>
+        </a>
         {% endfor %}
       </div>
+      {% if attack_type != 'all' %}
+      <a href="/dashboard" style="font-size:10px;color:#5A7A9A;">← Clear filter</a>
+      {% endif %}
     </div>
   </div>
 
@@ -115,11 +138,62 @@
 </div>
 
 <script>
-setTimeout(function () {
+  setTimeout(function () {
     const msg = document.getElementById("flash-message");
     if (msg) {
-        msg.style.display = "none";
+      msg.style.display = "none";
     }
-}, 3000); // 3 seconds
+  }, 3000); // 3 seconds
+</script>
+
+<script>
+(function () {
+  const slices = document.querySelectorAll('.pie-slice');
+  const legendItems = document.querySelectorAll('.pie-legend-item');
+  const tooltip = document.getElementById('pie-tooltip');
+  const pieWrap = document.querySelector('.pie-wrap');
+
+  function highlight(type) {
+    slices.forEach(s => {
+      const active = s.dataset.type === type;
+      s.style.opacity = (type === null || active) ? '1' : '0.35';
+      s.style.strokeWidth = active ? '26' : '22';
+    });
+    legendItems.forEach(l => {
+      const active = l.dataset.type === type;
+      l.style.opacity = (type === null || active) ? '1' : '0.5';
+      l.style.transform = active ? 'translateX(2px)' : 'translateX(0)';
+    });
+  }
+
+  function showTooltip(evt, type, pct, count) {
+    tooltip.innerHTML = `<strong style="color:#fff">${type}</strong><br>${pct}% &middot; ${count} events`;
+    tooltip.style.display = 'block';
+    const rect = pieWrap.getBoundingClientRect();
+    tooltip.style.left = (evt.clientX - rect.left + 12) + 'px';
+    tooltip.style.top = (evt.clientY - rect.top - 10) + 'px';
+  }
+
+  function hideTooltip() {
+    tooltip.style.display = 'none';
+    highlight(null);
+  }
+
+  slices.forEach(slice => {
+    slice.addEventListener('mousemove', (e) => {
+      highlight(slice.dataset.type);
+      showTooltip(e, slice.dataset.type, slice.dataset.pct, slice.dataset.count);
+    });
+    slice.addEventListener('mouseleave', hideTooltip);
+    slice.addEventListener('click', () => {
+      window.location.href = '/dashboard?type=' + encodeURIComponent(slice.dataset.type);
+    });
+  });
+
+  legendItems.forEach(item => {
+    item.addEventListener('mouseenter', () => highlight(item.dataset.type));
+    item.addEventListener('mouseleave', () => highlight(null));
+  });
+})();
 </script>
 {% endblock %}

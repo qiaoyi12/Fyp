@@ -18,25 +18,29 @@
 
   <a href="/alerts?severity=high&type={{ attack_type }}" class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
   <a href="/alerts?severity=medium&type={{ attack_type }}" class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
-  <a href="/alerts?severity=low&type={{ attack_type }}" class="f-btn low {% if severity == 'low' %}active{% endif %}">Low</a>
+  <a href="/alerts?severity=normal&type={{ attack_type }}" class="f-btn normal {% if severity == 'normal' %}active{% endif %}">Normal</a>
 
   <select class="f-btn" id="type-filter" onchange="applyTypeFilter()">
     <option value="all" {% if attack_type == 'all' %}selected{% endif %}>All Types</option>
-    <option value="PortScan" {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
-    <option value="DoS" {% if attack_type == 'DoS' %}selected{% endif %}>DoS</option>
-    <option value="DDoS" {% if attack_type == 'DDoS' %}selected{% endif %}>DDoS</option>
     <option value="Web Attack" {% if attack_type == 'Web Attack' %}selected{% endif %}>Web Attack</option>
     <option value="Bot/Patator" {% if attack_type == 'Bot/Patator' %}selected{% endif %}>Bot/Patator</option>
+    <option value="DDoS" {% if attack_type == 'DDoS' %}selected{% endif %}>DDoS</option>
+    <option value="DoS" {% if attack_type == 'DoS' %}selected{% endif %}>DoS</option>
     <option value="Rare/Others" {% if attack_type == 'Rare/Others' %}selected{% endif %}>Rare/Others</option>
+    <option value="PortScan" {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
+    <option value="BENIGN" {% if attack_type == 'BENIGN' %}selected{% endif %}>Benign</option>
   </select>
+  {% if severity != 'all' or attack_type != 'all' %}
+    <a href="/alerts" class="f-btn clear-filter">✕ Clear Filter</a>
+  {% endif %}
 </div>
 
 
 <!-- COLUMN HEADERS -->
-<!-- COLUMN HEADERS -->
 <div class="alert-row"
      style="position:sticky; top:0; z-index:100; background:#031c35; cursor:default; font-weight:600; color:#5A7A9A; font-size:11px; text-transform:uppercase; border-bottom:1px solid #1A3A5A;">
 
+  <span class="level" style="background:transparent;">Ticket ID</span>
   <span class="level" style="background:transparent;">Severity</span>
 
   <div class="alert-main">
@@ -65,7 +69,7 @@
     style="cursor:pointer;"
   >
   <div class="a-title">
-   #{{ alert.id }} 
+   #{{ alert.id }}
   </div>
 
     <span class="sev-badge sev-{{ alert.severity }}">
@@ -94,7 +98,6 @@
       <div class="a-time">{{ alert.time }}</div>
     </div>
 
-    <!-- TAG -->
     <!-- TAG -->
     <div class="a-tag"
      onclick="event.stopPropagation();"

@@ -31,11 +31,13 @@
         <th>Destination</th>
         <th>Event Type</th>
         <th>Protocol</th>
-        <th>Status</th>
+        <th>Severity</th>
       </tr>
     </thead>
     <tbody id="log-body">
       {% for log in logs %}
+
+      
       <tr class="{% if log.flagged %}flagged{% endif %}"
           data-src="{{ log.source }}" data-type="{{ log.type }}">
         <td>{{ log.timestamp }}</td>
@@ -61,6 +63,7 @@
     </tbody>
   </table>
 </div>
+
 
 <div class="table-footer">
   Showing {{ logs|length }} of {{ total }} entries

@@ -18,6 +18,8 @@ def _parse_date(value):
     except ValueError:
         return None
 
+
+# for credentials
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -38,6 +40,7 @@ def admin_required(f):
     return decorated
 
 
+# for login and register
 @pages_bp.route('/register', methods=['GET', 'POST'])
 def register():
     error = success = None
@@ -122,6 +125,8 @@ def analyse_selected_files():
 
     return redirect(url_for('pages.dashboard'))
 
+
+# for analyse of csv files for admin
 @pages_bp.route('/analyse/<int:file_id>', methods=['POST'])
 @admin_required
 def analyse_file(file_id):
@@ -131,13 +136,15 @@ def analyse_file(file_id):
     session['last_model_metrics'] = metrics or {}
     return redirect(url_for('pages.dashboard'))
 
-
+# for dashboard
 @pages_bp.route('/dashboard')
 @login_required
 def dashboard():
-    # SOC Analysts only see data from analyses assigned to them
+    attack_type = request.args.get('type', 'all')
+    
+
     high_alerts, threat_distribution, metrics = data_service.get_dashboard_data(
-        session['user_id'], session['role']
+        session['user_id'], session['role'], attack_type
     )
     if session.get('last_model_metrics'):
         metrics['model_accuracy'] = f"{session['last_model_metrics'].get('accuracy', 0)}%"
@@ -148,9 +155,10 @@ def dashboard():
         metrics=metrics, high_alerts=high_alerts,
         threat_distribution=threat_distribution,
         no_assignments=no_assignments,
+        attack_type=attack_type,
         user=session['user'], role=session['role'])
 
-
+# for alert feed and ticket details
 @pages_bp.route('/alerts')
 @login_required
 def alert_feed():
@@ -188,7 +196,7 @@ def threat_detail(alert_id):
 
 
 from flask import request
-
+# alert tag status and remarks update
 @pages_bp.route('/alerts/<int:alert_id>/tag', methods=['POST'])
 @login_required
 def update_alert_tag(alert_id):
@@ -210,6 +218,7 @@ def update_alert_remarks(alert_id):
     return redirect(request.referrer or url_for('pages.alert_feed'))
 
 
+# logs section
 @pages_bp.route('/logs')
 @login_required
 def logs():
@@ -224,7 +233,7 @@ def logs():
         no_assignments=no_assignments,
         user=session['user'], role=session['role'])
 
-
+# upload of csv files for admin
 @pages_bp.route('/upload', methods=['GET', 'POST'])
 @admin_required
 def upload():
@@ -241,34 +250,8 @@ def upload():
         user=session['user'], role=session['role'])
 
 
-@pages_bp.route('/metrics')
-@admin_required
-def model_metrics():
-    metrics = session.get('last_model_metrics', {})
-    if not metrics:
-        metrics = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1_score': 0.0}
-    payload = {
-        'accuracy':  metrics.get('accuracy', 0.0),
-        'precision': metrics.get('precision', 0.0),
-        'recall':    metrics.get('recall', 0.0),
-        'f1_score':  metrics.get('f1_score', 0.0),
-        # change this part is for plceholder now
-        'weekly': [
-            int(metrics.get('accuracy', 0.0)),
-            int(metrics.get('accuracy', 0.0)) + 1,
-            int(metrics.get('accuracy', 0.0)) + 2,
-            int(metrics.get('accuracy', 0.0)) + 1,
-            int(metrics.get('accuracy', 0.0)) + 3,
-            int(metrics.get('accuracy', 0.0)) + 2,
-            int(metrics.get('accuracy', 0.0)) + 4,
-        ],
-        'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        'confusion': {'tp': 4821, 'fp': 287, 'fn': 421, 'tn': 43291}
-    }
-    return render_template('model_metrics.html',
-        metrics=payload, user=session['user'], role=session['role'])
 
-
+# assignment section for admin to assign analysis to analysts
 @pages_bp.route('/assign', methods=['GET'])
 @admin_required
 def assign():
@@ -305,7 +288,7 @@ def unassign():
         data_service.remove_assignment(int(analysis_id), int(analyst_id))
     return redirect(url_for('pages.assign'))
 
-
+# top attacking IPs section for admin to view the top attacking IPs
 @pages_bp.route('/attackingIPS')
 @login_required
 def attacking_ips():
@@ -335,7 +318,7 @@ def attacking_ips():
         role=session['role']
     )
 
-
+# blacklist section for admin
 @pages_bp.route('/blacklist/add', methods=['POST'])
 @admin_required
 def blacklist_add():
@@ -360,3 +343,16 @@ def blacklist_remove_by_ip():
     if ip_address:
         data_service.remove_blacklist_ip_by_address(ip_address)
     return redirect(url_for('pages.report_analysis'))
+
+
+
+
+# insights page for admin to view the insights of the analysis
+@pages_bp.route('/insights')
+@login_required
+@admin_required   
+def attack_overview():
+    data = data_service.get_attack_overview(session['user_id'], session['role'], days=7)
+    return render_template('insights.html',
+        overview=data,
+        user=session['user'], role=session['role'])

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Attack Overview — IDS{% endblock %}
+{% block page_title %}Attack Overview{% endblock %}
+{% block status_text %}Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/insights.css') }}">
+{% endblock %}
+
+{% block content %}
+
+<div class="metric-grid-4">
+  <div class="metric-card">
+    <div class="m-label">Total Alerts (7 Days)</div>
+    <div class="m-value">{{ overview.total_alerts }}</div>
+  </div>
+  <div class="metric-card high">
+    <div class="m-label">Most Frequent Attack</div>
+    <div class="m-value red" style="font-size:16px">{{ overview.top_attack_type }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="m-label">increase attac %</div>
+    <div class="m-value {% if overview.pct_change is none %}blue{% elif overview.pct_change > 0 %}red{% else %}green{% endif %}" style="font-size:16px">
+      {% if overview.pct_change is none %}
+        N/A
+      {% else %}
+        {{ '+' if overview.pct_change > 0 else '' }}{{ overview.pct_change }}%
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- VOLUME TREND -->
+<div class="chart-card">
+  <div class="chart-title">Alert Volume — Last 7 Days</div>
+  <div class="trend-bars">
+    {% set max_count = overview.volume_trend | map(attribute='count') | max %}
+    {% for point in overview.volume_trend %}
+    <div class="trend-bar-col">
+      <div class="trend-bar volume"
+           style="height: {{ (point.count / max_count * 100) if max_count else 0 }}%;"
+           title="{{ point.count }} alerts on {{ point.date }}"></div>
+      <div class="trend-bar-label">{{ point.date[-2:] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- SEVERITY TREND -->
+<div class="chart-card">
+  <div class="chart-title">Severity Breakdown — Last 7 Days</div>
+  <div class="trend-bars">
+    {% for point in overview.severity_trend %}
+    {% set day_total = point.high + point.medium + point.normal %}
+    <div class="trend-bar-col">
+      <div class="trend-bar-stack" style="height: 100px;">
+        {% if day_total %}
+        <div class="stack-seg high" style="height: {{ point.high / day_total * 100 }}%;" title="High: {{ point.high }}"></div>
+        <div class="stack-seg medium" style="height: {{ point.medium / day_total * 100 }}%;" title="Medium: {{ point.medium }}"></div>
+        <div class="stack-seg normal" style="height: {{ point.normal / day_total * 100 }}%;" title="Normal: {{ point.normal }}"></div>
+        {% endif %}
+      </div>
+      <div class="trend-bar-label">{{ point.date[-2:] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="legend-row">
+    <span class="legend-dot high"></span> High
+    <span class="legend-dot medium"></span> Medium
+    <span class="legend-dot normal"></span> Normal
+  </div>
+</div>
+
+<!-- TYPE BREAKDOWN TABLE -->
+<div class="chart-card">
+  <div class="chart-title">Attack Type Totals (7 Days)</div>
+  <table class="overview-table">
+    <thead>
+      <tr><th>Type</th><th>Count</th></tr>
+    </thead>
+    <tbody>
+      {% for type, count in overview.type_totals.items() %}
+      <tr><td>{{ type }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- TOP ATTACKING IPS -->
+<div class="chart-card">
+  <div class="chart-title">Top Attacking IPs (7 Days)</div>
+  <table class="overview-table">
+    <thead>
+      <tr><th>IP</th><th>Count</th><th>Max Severity</th></tr>
+    </thead>
+    <tbody>
+      {% for ip in overview.top_ips %}
+      <tr>
+        <td>{{ ip.ip }}</td>
+        <td>{{ ip.count }}</td>
+        <td><span class="sev-badge sev-{{ ip.max_severity }}">{{ ip.max_severity.upper() }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3">No IP data for this period.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ANALYSIS RUN HISTORY -->
+<div class="chart-card">
+  <div class="chart-title">Analyses in This Period</div>
+  <table class="overview-table">
+    <thead>
+      <tr><th>ID</th><th>Date</th><th>Rows</th><th>High</th><th>Medium</th></tr>
+    </thead>
+    <tbody>
+      {% for r in overview.analyses_in_period %}
+      <tr>
+        <td>#{{ r.id }}</td>
+        <td>{{ r.analysed_at.strftime('%d %b, %H:%M') }}</td>
+        <td>{{ r.total_rows }}</td>
+        <td>{{ r.high_count }}</td>
+        <td>{{ r.medium_count }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No analyses in this period.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

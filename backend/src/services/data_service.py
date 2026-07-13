@@ -1,7 +1,7 @@
 # Handles uploaded data, analysis, alerts, logs, and report summary.
 import json
 import time
-from datetime import timedelta
+from datetime import timedelta, datetime
 from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
 from backend.src.database.db import db
 from backend.src.ml.preprocess import preprocess_csv
@@ -51,10 +51,14 @@ def _analysis_query(user_id, role):
 
 
 # ── DASHBOARD ─────────────────────────────────────────────────
-def get_dashboard_data(user_id, role):
-    high_alerts = _alert_query(user_id, role)\
-        .filter_by(severity='high')\
-        .order_by(Alert.created_at.desc()).limit(3).all()
+def get_dashboard_data(user_id, role, attack_type='all'):
+    query = _alert_query(user_id, role)
+    if attack_type == 'all':
+        query = query.filter_by(severity='high')
+    else:
+        query = query.filter_by(prediction=attack_type)
+
+    high_alerts = query.order_by(Alert.created_at.desc()).limit(3).all()
     high_alerts = [a.to_dict() for a in high_alerts]
 
     latest = _analysis_query(user_id, role)\
@@ -66,11 +70,11 @@ def get_dashboard_data(user_id, role):
     threat_distribution = [
         {'type': 'BENIGN',      'pct': round(latest.benign      / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.benign,      'colour': '#1DB954'},
         {'type': 'Web Attack',  'pct': round(latest.web_attack  / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.web_attack,  'colour': '#E74C3C'},
-        {'type': 'DoS',         'pct': round(latest.dos         / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.dos,         'colour': '#F39C12'},
-        {'type': 'DDoS',        'pct': round(latest.ddos        / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.ddos,        'colour': '#3D8EFF'},
-        {'type': 'PortScan',    'pct': round(latest.portscan    / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.portscan,    'colour': '#A07EFF'},
         {'type': 'Bot/Patator', 'pct': round(latest.bot         / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.bot,         'colour': '#FF6B6B'},
+        {'type': 'DDoS',        'pct': round(latest.ddos        / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.ddos,        'colour': '#3D8EFF'},
+        {'type': 'DoS',         'pct': round(latest.dos         / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.dos,         'colour': '#F39C12'},
         {'type': 'Rare/Others', 'pct': round(latest.rare        / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.rare,        'colour': '#FFD93D'},
+        {'type': 'PortScan',    'pct': round(latest.portscan    / latest.total_rows * 100, 1) if latest.total_rows else 0, 'count': latest.portscan,    'colour': '#A07EFF'},
     ]
     metrics = {
         'logs_processed': f'{latest.total_rows:,}',
@@ -126,7 +130,6 @@ def _resolve_uploads(file_ids, user_id):
 
     return uploads
 
-
 def run_analysis(file_ids, user_id):
     uploads = _resolve_uploads(file_ids, user_id)
     if not uploads:
@@ -171,13 +174,14 @@ def run_analysis(file_ids, user_id):
     db.session.add(record)
     db.session.commit()
 
+    # Group ALL predictions by type, including BENIGN
     by_type = {}
     for r in combined_results:
-        if r['severity'] in ('high', 'medium'):
-            if r['prediction'] not in by_type:
-                by_type[r['prediction']] = []
-            by_type[r['prediction']].append(r)
+        if r['prediction'] not in by_type:
+            by_type[r['prediction']] = []
+        by_type[r['prediction']].append(r)
 
+    # IP stats — across all rows (now includes BENIGN too)
     ip_counts = {}
     for r in [row for rows in by_type.values() for row in rows]:
         row_idx = r['row']
@@ -193,58 +197,58 @@ def run_analysis(file_ids, user_id):
     record.ip_stats = json.dumps(list(ip_counts.values()))
     db.session.commit()
 
+    TICKETS_PER_TYPE_MAX = 80  # cap per type, including BENIGN
+
     selected = []
     for label, rows in by_type.items():
-        selected.extend(sorted(rows, key=lambda x: x['confidence'], reverse=True)[:20])
+        # ascending confidence — least confident (most uncertain) predictions first,
+        # since those need analyst review most
+        selected.extend(sorted(rows, key=lambda x: x['confidence'])[:TICKETS_PER_TYPE_MAX])
 
     frame_lookup = {upload.id: X for upload, X in processed_files}
     for r in selected:
-                    row_data = frame_lookup[r['source_upload_id']].iloc[r['source_row']]
-                    row_idx = r['row']
-                    source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
+        row_data = frame_lookup[r['source_upload_id']].iloc[r['source_row']]
+        row_idx = r['row']
+        source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
 
-                    alert = Alert(
-                        analysis_id=record.id,
-                        user_id=user_id,
-                        row_index=row_idx,
-                        prediction=r['prediction'],
-                        severity=r['severity'],
-                        confidence=r['confidence'],
-                        xgb_vote=r['xgb_vote'],
-                        rf_vote=r['rf_vote'],
-                        dest_port=int(row_data['Destination Port']),
-                        flow_duration=round(float(row_data['Flow Duration']), 2),
-                        flow_pkts_s=round(float(row_data['Flow Packets/s']), 2),
-                        source_ip=source_ip,
-                    )
+        severity = 'normal' if r['prediction'] == 'BENIGN' else r['severity']
 
-                    db.session.add(alert)
-                    db.session.flush()      # Generates alert.id
+        alert = Alert(
+            analysis_id=record.id,
+            user_id=user_id,
+            row_index=row_idx,
+            prediction=r['prediction'],
+            severity=severity,
+            confidence=r['confidence'],
+            xgb_vote=r['xgb_vote'],
+            rf_vote=r['rf_vote'],
+            dest_port=int(row_data['Destination Port']),
+            flow_duration=round(float(row_data['Flow Duration']), 2),
+            flow_pkts_s=round(float(row_data['Flow Packets/s']), 2),
+            source_ip=source_ip,
+        )
+        db.session.add(alert)
+        db.session.flush()  # generates alert.id
 
-                    detail = AlertDetail(
-                        alert_id=alert.id,
+        detail = AlertDetail(
+            alert_id=alert.id,
+            flow_duration=round(float(row_data['Flow Duration']), 2),
+            flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
+            flow_packets_s=round(float(row_data['Flow Packets/s']), 2),
+            total_fwd_packets=int(row_data['Total Fwd Packets']),
+            total_backward_packets=int(row_data['Total Backward Packets']),
+            packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
+            average_packet_size=round(float(row_data['Average Packet Size']), 2),
+            syn_flag_count=int(row_data['SYN Flag Count']),
+            ack_flag_count=int(row_data['ACK Flag Count']),
+            psh_flag_count=int(row_data['PSH Flag Count']),
+            init_win_bytes_forward=int(row_data['Init_Win_bytes_forward']),
+            init_win_bytes_backward=int(row_data['Init_Win_bytes_backward']),
+        )
+        db.session.add(detail)
 
-                        flow_duration=round(float(row_data['Flow Duration']), 2),
-                        flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
-                        flow_packets_s=round(float(row_data['Flow Packets/s']), 2),
+    db.session.commit()  # single commit for the whole batch
 
-                        total_fwd_packets=int(row_data['Total Fwd Packets']),
-                        total_backward_packets=int(row_data['Total Backward Packets']),
-
-                        packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
-                        average_packet_size=round(float(row_data['Average Packet Size']), 2),
-
-                        syn_flag_count=int(row_data['SYN Flag Count']),
-                        ack_flag_count=int(row_data['ACK Flag Count']),
-                        psh_flag_count=int(row_data['PSH Flag Count']),
-
-                        init_win_bytes_forward=int(row_data['Init_Win_bytes_forward']),
-                        init_win_bytes_backward=int(row_data['Init_Win_bytes_backward']),
-                    )
-
-                    db.session.add(detail)
-
-                    db.session.commit()
     return record, None, metrics
 
 
@@ -443,3 +447,86 @@ def remove_assignment(analysis_id, analyst_id):
     if entry:
         db.session.delete(entry)
         db.session.commit()
+
+# insights page
+# insights page
+from datetime import datetime, timedelta
+import json
+
+def get_attack_overview(user_id, role, days=7):
+    since = datetime.utcnow() - timedelta(days=days)
+    prev_since = since - timedelta(days=days)
+
+    # pull from AnalysisResult — this has the REAL totals, not the sampled ticket subset
+    results = _analysis_query(user_id, role)\
+        .filter(AnalysisResult.analysed_at >= since)\
+        .order_by(AnalysisResult.analysed_at.asc()).all()
+
+    prev_results = _analysis_query(user_id, role)\
+        .filter(AnalysisResult.analysed_at >= prev_since,
+                AnalysisResult.analysed_at < since).all()
+
+    volume_by_day = {}
+    severity_by_day = {}
+    type_totals = {
+        'BENIGN': 0, 'Web Attack': 0, 'DoS': 0, 'DDoS': 0,
+        'PortScan': 0, 'Bot/Patator': 0, 'Rare/Others': 0
+    }
+    ip_totals = {}
+
+    for r in results:
+        day_key = r.analysed_at.strftime('%Y-%m-%d')
+
+        volume_by_day[day_key] = volume_by_day.get(day_key, 0) + r.total_rows
+
+        sev_bucket = severity_by_day.setdefault(day_key, {'high': 0, 'medium': 0, 'normal': 0})
+        sev_bucket['high'] += r.high_count
+        sev_bucket['medium'] += r.medium_count
+        sev_bucket['normal'] += r.normal_count
+
+        type_totals['BENIGN'] += r.benign
+        type_totals['Web Attack'] += r.web_attack
+        type_totals['DoS'] += r.dos
+        type_totals['DDoS'] += r.ddos
+        type_totals['PortScan'] += r.portscan
+        type_totals['Bot/Patator'] += r.bot
+        type_totals['Rare/Others'] += r.rare
+
+        # aggregate IP stats across all analyses in this period
+        if r.ip_stats:
+            for entry in json.loads(r.ip_stats):
+                ip = entry['ip']
+                if ip not in ip_totals:
+                    ip_totals[ip] = {'ip': ip, 'count': 0, 'max_severity': 'normal'}
+                ip_totals[ip]['count'] += entry['count']
+                if SEVERITY_RANK.get(entry['max_severity'], 0) > SEVERITY_RANK.get(ip_totals[ip]['max_severity'], 0):
+                    ip_totals[ip]['max_severity'] = entry['max_severity']
+
+    day_labels = [(since + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days + 1)]
+
+    volume_trend = [{'date': d, 'count': volume_by_day.get(d, 0)} for d in day_labels]
+    severity_trend = [{'date': d, **severity_by_day.get(d, {'high': 0, 'medium': 0, 'normal': 0})} for d in day_labels]
+
+    attack_only = {k: v for k, v in type_totals.items() if k != 'BENIGN'}
+    top_attack_type = max(attack_only, key=attack_only.get) if any(attack_only.values()) else 'None'
+
+    top_ips = sorted(ip_totals.values(), key=lambda x: x['count'], reverse=True)[:5]
+
+    total_this_period = sum(volume_by_day.values())
+    total_prev_period = sum(r.total_rows for r in prev_results)
+
+    if total_prev_period > 0:
+        pct_change = round(((total_this_period - total_prev_period) / total_prev_period) * 100, 1)
+    else:
+        pct_change = None
+
+    return {
+        'total_alerts': total_this_period,
+        'volume_trend': volume_trend,
+        'severity_trend': severity_trend,
+        'top_attack_type': top_attack_type,
+        'type_totals': type_totals,
+        'top_ips': top_ips,
+        'pct_change': pct_change,
+        'analyses_in_period': results,
+    }
