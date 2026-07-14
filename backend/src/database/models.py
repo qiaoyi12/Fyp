@@ -92,7 +92,8 @@ class AnalysisAssignment(db.Model):
 
     id          = db.Column(db.Integer, primary_key=True)
     analysis_id = db.Column(db.Integer, db.ForeignKey('analysis_results.id'), nullable=False)
-    analyst_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    analyst_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  
     assigned_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -101,11 +102,13 @@ class AnalysisAssignment(db.Model):
             'id': self.id,
             'analysis_id': self.analysis_id,
             'analyst_id': self.analyst_id,
+            'manager_id': self.manager_id,
             'assigned_by': self.assigned_by,
             'assigned_at': self.assigned_at.strftime('%Y-%m-%d %H:%M'),
         }
 
     analyst = db.relationship('User', foreign_keys=[analyst_id])
+    manager = db.relationship('User', foreign_keys=[manager_id])
     
 
 # for the alerts feed page

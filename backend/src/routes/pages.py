@@ -7,6 +7,7 @@ from backend.src.database.db import db
 from backend.src.services import data_service
 from backend.src.routes.upload import save_upload
 from datetime import datetime
+from flask import flash
 
 pages_bp = Blueprint('pages', __name__)
 
@@ -40,7 +41,7 @@ def admin_required(f):
     return decorated
 
 
-# for login and register
+# for login and register credentials
 @pages_bp.route('/register', methods=['GET', 'POST'])
 def register():
     error = success = None
@@ -103,8 +104,7 @@ def logout():
     session.clear()
     return redirect(url_for('pages.login'))
 
-from flask import flash
-# admin required is only for soc analysts
+
 # admin required is only for soc analysts
 @pages_bp.route('/analyse', methods=['POST'])
 @admin_required
@@ -251,42 +251,89 @@ def upload():
 
 
 
-# assignment section for admin to assign analysis to analysts
-@pages_bp.route('/assign', methods=['GET'])
+# assignment section for admin to assign analysis to analysts and managers
+@pages_bp.route('/assign-manager', methods=['GET'])
 @admin_required
-def assign():
+def assign_manager():
     analyses = data_service.get_analyses_for_assignment(session['user_id'])
-    analysts = data_service.get_all_analysts()
+    managers = data_service.get_all_managers()
     message = request.args.get('message')
     error = request.args.get('error')
-    return render_template('assign.html',
-        analyses=analyses, analysts=analysts,
+    return render_template('assignManager.html',
+        analyses=analyses, managers=managers,
         message=message, error=error,
-        active_page='assign', user=session['user'], role=session['role'])
+        active_page='assign_manager', user=session['user'], role=session['role'])
 
 
-@pages_bp.route('/assign', methods=['POST'])
+@pages_bp.route('/assign-manager', methods=['POST'])
 @admin_required
-def assign_submit():
+def assign_manager_submit():
     analysis_id = request.form.get('analysis_id')
-    analyst_ids = request.form.getlist('analyst_ids')
-    if not analysis_id or not analyst_ids:
-        return redirect(url_for('pages.assign', error='Please select an analysis and at least one analyst.'))
-    data_service.assign_analysis(
+    manager_id = request.form.get('manager_id')
+    if not analysis_id or not manager_id:
+        return redirect(url_for('pages.assign_manager', error='Please select an analysis and a manager.'))
+    data_service.assign_to_manager(
         analysis_id=int(analysis_id),
-        analyst_ids=[int(i) for i in analyst_ids],
+        manager_id=int(manager_id),
         assigned_by=session['user_id']
     )
-    return redirect(url_for('pages.assign', message='Analysis successfully assigned.'))
+    return redirect(url_for('pages.assign_manager', message='Analysis successfully assigned to manager.'))
 
-@pages_bp.route('/assign/remove', methods=['POST'])
+
+@pages_bp.route('/assign-manager/remove', methods=['POST'])
 @admin_required
-def unassign():
+def unassign_manager():
     analysis_id = request.form.get('analysis_id')
-    analyst_id = request.form.get('analyst_id')
-    if analysis_id and analyst_id:
-        data_service.remove_assignment(int(analysis_id), int(analyst_id))
-    return redirect(url_for('pages.assign'))
+    manager_id = request.form.get('manager_id')
+    if analysis_id and manager_id:
+        data_service.remove_assignment_manager(int(analysis_id), int(manager_id))
+    return redirect(url_for('pages.assign_manager'))
+
+# to be change for the manageer to assign to the analysts.
+# @pages_bp.route('/assign', methods=['GET'])
+# @admin_required
+# def assign():
+#     analyses = data_service.get_analyses_for_assignment(session['user_id'])
+#     analysts = data_service.get_all_analysts()
+#     message = request.args.get('message')
+#     error = request.args.get('error')
+#     return render_template('assign.html',
+#         analyses=analyses, analysts=analysts,
+#         message=message, error=error,
+#         active_page='assign', user=session['user'], role=session['role'])
+
+
+# @pages_bp.route('/assign', methods=['POST'])
+# @admin_required
+# def assign_submit():
+#     analysis_id = request.form.get('analysis_id')
+#     analyst_ids = request.form.getlist('analyst_ids')
+#     if not analysis_id or not analyst_ids:
+#         return redirect(url_for('pages.assign', error='Please select an analysis and at least one analyst.'))
+#     data_service.assign_analysis(
+#         analysis_id=int(analysis_id),
+#         analyst_ids=[int(i) for i in analyst_ids],
+#         assigned_by=session['user_id']
+#     )
+#     return redirect(url_for('pages.assign', message='Analysis successfully assigned.'))
+
+# @pages_bp.route('/assign/remove', methods=['POST'])
+# @admin_required
+# def unassign():
+#     analysis_id = request.form.get('analysis_id')
+#     analyst_id = request.form.get('analyst_id')
+#     if analysis_id and analyst_id:
+#         data_service.remove_assignment(int(analysis_id), int(analyst_id))
+#     return redirect(url_for('pages.assign'))
+
+# for manager page
+@pages_bp.route('/assign-analyst', methods=['GET'])
+@login_required
+def assign_analyst():
+    return render_template('assignAnalyst.html',
+        analyses=[], analysts=[],
+        message=None, error=None,
+        active_page='assign_analyst', user=session['user'], role=session['role'])
 
 # top attacking IPs section for admin to view the top attacking IPs
 @pages_bp.route('/attackingIPS')

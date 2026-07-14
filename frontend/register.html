@@ -20,6 +20,9 @@
         <div class="login-role-btn selected" onclick="selectRole('analyst')" id="btn-analyst">
           SOC Analyst
         </div>
+        <div class="login-role-btn" onclick="selectRole('manager')" id="btn-manager">
+          IT Manager
+        </div>
         <div class="login-role-btn" onclick="selectRole('admin')" id="btn-admin">
           IT Administrator
         </div>
@@ -90,6 +93,7 @@
   function selectRole(role) {
     document.getElementById('role-input').value = role
     document.getElementById('btn-analyst').classList.toggle('selected', role === 'analyst')
+    document.getElementById('btn-manager').classList.toggle('selected', role === 'manager')
     document.getElementById('btn-admin').classList.toggle('selected', role === 'admin')
   }
 </script>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Assign to Analyst — IDS{% endblock %}
-{% block page_title %}Assign to Analyst{% endblock %}
+{% block title %}Assign to Manager — IDS{% endblock %}
+{% block page_title %}Assign to Manager{% endblock %}
 {% block status_text %}System Operational{% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
 <div class="msg-error">✕ {{ error }}</div>
 {% endif %}
 
-<form method="POST" action="/assign">
+<form method="POST" action="/assign-manager">
 
   <!-- STEP 1: PICK AN ANALYSIS RUN -->
   <div class="sec-title">Step 1 — Select Analysis Run</div>
@@ -35,12 +35,12 @@
         </div>
       </div>
 
-      {% if a.is_assigned %}
+      {% if a.is_assigned_manager %}
       <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
         <span style="font-size:9px;color:#1DB954;font-family:'JetBrains Mono',monospace">✓</span>
 
-        {% for analyst in a.assigned_to %}
-        <button type="button" onclick="removeAssignment({{ a.id }}, {{ analyst.analyst_id }})" style="font-size:9px;font-family:'JetBrains Mono',monospace;
+        {% for manager in a.assigned_managers %}
+        <button type="button" onclick="removeAssignment({{ a.id }}, {{ manager.manager_id }})" style="font-size:9px;font-family:'JetBrains Mono',monospace;
            background:rgba(231,76,60,0.08);
            border:1px solid #1A0808;
            color:#c8dff0;
@@ -50,7 +50,7 @@
            display:flex;
            align-items:center;
            gap:4px">
-          {{ analyst.username }}
+          {{ manager.username }}
           <span style="color:#E74C3C">✕</span>
         </button>
         {% endfor %}
@@ -70,32 +70,32 @@
   </div>
   {% endif %}
 
-  <!-- STEP 2: PICK SOC ANALYSTS -->
-  <div class="sec-title" style="margin-top:20px">Step 2 — Select SOC Analyst(s)</div>
-  {% if analysts %}
+  <!-- STEP 2: PICK A MANAGER -->
+  <div class="sec-title" style="margin-top:20px">Step 2 — Select Manager</div>
+  {% if managers %}
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
-    {% for analyst in analysts %}
+    {% for manager in managers %}
     <label style="cursor:pointer">
-      <div class="f-btn" id="analyst-btn-{{ analyst.id }}"
+      <div class="f-btn" id="manager-btn-{{ manager.id }}"
         style="display:flex;align-items:center;gap:6px;padding:6px 12px">
-        <input type="checkbox" name="analyst_ids" value="{{ analyst.id }}" style="accent-color:#3D8EFF"
-          onchange="toggleAnalystBtn({{ analyst.id }}, this.checked)">
+        <input type="radio" name="manager_id" value="{{ manager.id }}" required style="accent-color:#3D8EFF"
+          onchange="selectManagerBtn({{ manager.id }})">
         <div class="sb-avatar" style="width:20px;height:20px;font-size:8px;line-height:20px">
-          {{ analyst.username[:2].upper() }}
+          {{ manager.username[:2].upper() }}
         </div>
-        {{ analyst.username }}
+        {{ manager.username }}
       </div>
     </label>
     {% endfor %}
   </div>
   {% else %}
   <div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:12px 0">
-    No SOC Analyst accounts found.
+    No Manager accounts found.
   </div>
   {% endif %}
 
   <!-- SUBMIT -->
-  {% if analyses and analysts %}
+  {% if analyses and managers %}
   <button type="submit" style="margin-top:6px;font-size:9px;padding:6px 16px;border-radius:5px;
            background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
            color:#3D8EFF;font-family:'JetBrains Mono',monospace;cursor:pointer;">
@@ -104,42 +104,33 @@
 {% endif %}
 </form>
 
-<form id="remove-form" method="POST" action="/assign/remove" style="display:none;">
+<form id="remove-form" method="POST" action="/assign-manager/remove" style="display:none;">
   <input type="hidden" id="remove-analysis-id" name="analysis_id">
-  <input type="hidden" id="remove-analyst-id" name="analyst_id">
+  <input type="hidden" id="remove-manager-id" name="manager_id">
 </form>
 
 {% endblock %}
 
-#javascript fucntion
 {% block scripts %}
 <script>
-  function toggleAnalystBtn(id, checked) {
-    const btn = document.getElementById('analyst-btn-' + id)
-    if (checked) {
-      btn.style.background = 'rgba(61,142,255,0.08)'
-      btn.style.color = '#3D8EFF'
-      btn.style.borderColor = '#1A3A6A'
-    } else {
+  function selectManagerBtn(id) {
+    document.querySelectorAll('[id^="manager-btn-"]').forEach(btn => {
       btn.style.background = ''
       btn.style.color = ''
       btn.style.borderColor = ''
-    }
+    })
+    const btn = document.getElementById('manager-btn-' + id)
+    btn.style.background = 'rgba(61,142,255,0.08)'
+    btn.style.color = '#3D8EFF'
+    btn.style.borderColor = '#1A3A6A'
   }
 
-  function removeAssignment(analysisId, analystId) {
-    document.getElementById("remove-analysis-id").value = analysisId;
-    document.getElementById("remove-analyst-id").value = analystId;
-    document.getElementById("remove-form").submit();
-  }
-
-  function removeAssignment(analysisId, analystId) {
-
-    if (!confirm("Remove this analyst from the analysis?")) {
+  function removeAssignment(analysisId, managerId) {
+    if (!confirm("Remove this manager from the analysis?")) {
         return;
     }
     document.getElementById("remove-analysis-id").value = analysisId;
-    document.getElementById("remove-analyst-id").value = analystId;
+    document.getElementById("remove-manager-id").value = managerId;
     document.getElementById("remove-form").submit();
   }
 </script>

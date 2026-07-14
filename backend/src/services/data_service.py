@@ -11,39 +11,35 @@ SEVERITY_RANK = {'normal': 0, 'medium': 1, 'high': 2}
 
 
 # ── ASSIGNMENT HELPER ─────────────────────────────────────────
-def _get_assigned_analysis_ids(analyst_id):
-    """Returns list of analysis_ids assigned to this SOC Analyst."""
-    assignments = AnalysisAssignment.query.filter_by(analyst_id=analyst_id).all()
+def _get_assigned_analysis_ids(user_id, role):
+    """Returns list of analysis_ids assigned to this user, based on role."""
+    if role == 'analyst':
+        assignments = AnalysisAssignment.query.filter_by(analyst_id=user_id).all()
+    elif role == 'manager':
+        assignments = AnalysisAssignment.query.filter_by(manager_id=user_id).all()
+    else:
+        return []
     return [a.analysis_id for a in assignments]
 
 
 def has_no_assignments(user_id, role):
-    """True only when this SOC Analyst has zero analyses assigned to them."""
-    if role != 'analyst':
+    if role not in ('analyst', 'manager'):
         return False
-    return len(_get_assigned_analysis_ids(user_id)) == 0
+    return len(_get_assigned_analysis_ids(user_id, role)) == 0
 
 
 def _alert_query(user_id, role):
-    """
-    Returns the base Alert query scoped to what this user can see.
-    IT Administrator: all alerts they uploaded.
-    SOC Analyst: only alerts from analyses assigned to them.
-    """
-    if role == 'analyst':
-        analysis_ids = _get_assigned_analysis_ids(user_id)
+    if role in ('analyst', 'manager'):
+        analysis_ids = _get_assigned_analysis_ids(user_id, role)
         if not analysis_ids:
-            return Alert.query.filter_by(id=None)  # empty result
+            return Alert.query.filter_by(id=None)
         return Alert.query.filter(Alert.analysis_id.in_(analysis_ids))
     return Alert.query.filter_by(user_id=user_id)
 
 
 def _analysis_query(user_id, role):
-    """
-    Same scoping logic but for AnalysisResult queries.
-    """
-    if role == 'analyst':
-        analysis_ids = _get_assigned_analysis_ids(user_id)
+    if role in ('analyst', 'manager'):
+        analysis_ids = _get_assigned_analysis_ids(user_id, role)
         if not analysis_ids:
             return AnalysisResult.query.filter_by(id=None)
         return AnalysisResult.query.filter(AnalysisResult.id.in_(analysis_ids))
@@ -403,52 +399,93 @@ def get_analyses_for_assignment(admin_user_id):
     for a in analyses:
         file = UploadedFile.query.get(a.file_id)
         assignments = AnalysisAssignment.query.filter_by(analysis_id=a.id).all()
+
         assigned_to = [
             {'id': assign.analyst.id, 'username': assign.analyst.username, 'analyst_id': assign.analyst_id}
             for assign in assignments
+            if assign.analyst_id is not None
         ]
+        assigned_managers = [
+            {'id': assign.manager.id, 'username': assign.manager.username, 'manager_id': assign.manager_id}
+            for assign in assignments
+            if assign.manager_id is not None
+        ]
+
         result.append({
-            'id':           a.id,
-            'filename':     file.filename if file else 'Unknown',
-            'analysed_at':  a.analysed_at.strftime('%Y-%m-%d %H:%M'),
-            'total_rows':   a.total_rows,
-            'high_count':   a.high_count,
-            'medium_count': a.medium_count,
-            'assigned_to':  assigned_to,
-            'is_assigned':  len(assigned_to) > 0,
+            'id':                  a.id,
+            'filename':            file.filename if file else 'Unknown',
+            'analysed_at':         a.analysed_at.strftime('%Y-%m-%d %H:%M'),
+            'total_rows':          a.total_rows,
+            'high_count':          a.high_count,
+            'medium_count':        a.medium_count,
+            'assigned_to':         assigned_to,
+            'is_assigned':         len(assigned_to) > 0,
+            'assigned_managers':   assigned_managers,
+            'is_assigned_manager': len(assigned_managers) > 0,
         })
     return result
 
-
 def get_all_analysts():
-    """All SOC Analyst accounts for the assignment dropdown."""
+    """All SOC Analyst accounts for the assignment n."""
     analysts = User.query.filter_by(role='analyst').all()
     return [{'id': u.id, 'username': u.username} for u in analysts]
 
+def get_all_managers():
+    """All it manager accounts for the assignment ."""
+    managers = User.query.filter_by(role='manager').all()
+    return [{'id': u.id, 'username': u.username} for u in managers]
 
-def assign_analysis(analysis_id, analyst_ids, assigned_by):
+
+def assign_to_manager(analysis_id, manager_id, assigned_by):
+    """
+    Admin assigns an analysis to a manager.
+    Adds a new AnalysisAssignment row for this manager if one doesn't already exist.
+    """
     existing_ids = {
-        a.analyst_id for a in 
+        a.manager_id for a in
         AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
+        if a.manager_id is not None
     }
-    for analyst_id in analyst_ids:
-        if analyst_id not in existing_ids:
-            db.session.add(AnalysisAssignment(
-                analysis_id=analysis_id,
-                analyst_id=analyst_id,
-                assigned_by=assigned_by,
-            ))
+    if manager_id not in existing_ids:
+        db.session.add(AnalysisAssignment(
+            analysis_id=analysis_id,
+            manager_id=manager_id,
+            assigned_by=assigned_by,
+        ))
     db.session.commit()
 
-def remove_assignment(analysis_id, analyst_id):
+def remove_assignment_manager(analysis_id, manager_id):
     entry = AnalysisAssignment.query.filter_by(
-        analysis_id=analysis_id, analyst_id=analyst_id
+        analysis_id=analysis_id, manager_id=manager_id
     ).first()
     if entry:
         db.session.delete(entry)
         db.session.commit()
 
-# insights page
+
+# to be changed
+# def assign_analysis(analysis_id, analyst_ids, assigned_by):
+#     existing_ids = {
+#         a.analyst_id for a in 
+#         AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
+#     }
+#     for analyst_id in analyst_ids:
+#         if analyst_id not in existing_ids:
+#             db.session.add(AnalysisAssignment(
+#                 analysis_id=analysis_id,
+#                 analyst_id=analyst_id,
+#                 assigned_by=assigned_by,
+#             ))
+#     db.session.commit()
+
+# def remove_assignment(analysis_id, analyst_id):
+#     entry = AnalysisAssignment.query.filter_by(
+#         analysis_id=analysis_id, analyst_id=analyst_id
+#     ).first()
+#     if entry:
+#         db.session.delete(entry)
+#         db.session.commit()
+
 # insights page
 from datetime import datetime, timedelta
 import json
