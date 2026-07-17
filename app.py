@@ -40,5 +40,23 @@ with app.app_context():
             with db.engine.begin() as connection:
                 connection.execute(text("ALTER TABLE analysis_results ADD COLUMN file_ids TEXT"))
 
+    if 'alerts' in inspector.get_table_names():
+        alert_columns = {column['name'] for column in inspector.get_columns('alerts')}
+        with db.engine.begin() as connection:
+            if 'assigned_analyst_id' not in alert_columns:
+                connection.execute(text("ALTER TABLE alerts ADD COLUMN assigned_analyst_id INTEGER"))
+            if 'assignment_source' not in alert_columns:
+                connection.execute(text("ALTER TABLE alerts ADD COLUMN assignment_source VARCHAR(20)"))
+            if 'assignment_reason' not in alert_columns:
+                connection.execute(text("ALTER TABLE alerts ADD COLUMN assignment_reason TEXT"))
+            if 'assigned_at' not in alert_columns:
+                connection.execute(text("ALTER TABLE alerts ADD COLUMN assigned_at DATETIME"))
+
+    if 'analysis_assignments' in inspector.get_table_names():
+        assignment_columns = {column['name'] for column in inspector.get_columns('analysis_assignments')}
+        if 'manager_id' not in assignment_columns:
+            with db.engine.begin() as connection:
+                connection.execute(text("ALTER TABLE analysis_assignments ADD COLUMN manager_id INTEGER"))
+                
 if __name__ == '__main__':
     app.run(debug=True)

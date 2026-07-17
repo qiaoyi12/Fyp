@@ -245,6 +245,9 @@ def run_analysis(file_ids, user_id):
 
     db.session.commit()  # single commit for the whole batch
 
+    from agenticAI.assignment_agent import run_assignment_for_batch
+    run_assignment_for_batch(record.id)
+
     return record, None, metrics
 
 
