@@ -12,15 +12,15 @@
     class="search-input"
     type="text"
     id="search-input"
-    placeholder="Search alerts by IP, type, description..."
+    placeholder="Search alerts by attack type..."
     onkeyup="filterAlerts()"
   />
 
-  <a href="/alerts?severity=high&type={{ attack_type }}" class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
-  <a href="/alerts?severity=medium&type={{ attack_type }}" class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
-  <a href="/alerts?severity=normal&type={{ attack_type }}" class="f-btn normal {% if severity == 'normal' %}active{% endif %}">Normal</a>
+  <a href="/alerts?severity=high&type={{ attack_type }}&sort={{ sort }}" class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
+  <a href="/alerts?severity=medium&type={{ attack_type }}&sort={{ sort }}" class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
+  <a href="/alerts?severity=normal&type={{ attack_type }}&sort={{ sort }}" class="f-btn normal {% if severity == 'normal' %}active{% endif %}">Normal</a>
 
-  <select class="f-btn" id="type-filter" onchange="applyTypeFilter()">
+  <select class="f-btn" id="type-filter" onchange="applyFilters()">
     <option value="all" {% if attack_type == 'all' %}selected{% endif %}>All Types</option>
     <option value="Web Attack" {% if attack_type == 'Web Attack' %}selected{% endif %}>Web Attack</option>
     <option value="Bot/Patator" {% if attack_type == 'Bot/Patator' %}selected{% endif %}>Bot/Patator</option>
@@ -30,6 +30,14 @@
     <option value="PortScan" {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
     <option value="BENIGN" {% if attack_type == 'BENIGN' %}selected{% endif %}>Benign</option>
   </select>
+
+  <select class="f-btn" id="sort-filter" onchange="applyFilters()">
+    <option value="confidence_desc" {% if sort == 'confidence_desc' or not sort %}selected{% endif %}>Highest Confidence</option>
+    <option value="confidence_asc" {% if sort == 'confidence_asc' %}selected{% endif %}>Lowest Confidence</option>
+    <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Most Recent</option>
+    <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Oldest First</option>
+  </select>
+
   {% if severity != 'all' or attack_type != 'all' %}
     <a href="/alerts" class="f-btn clear-filter">✕ Clear Filter</a>
   {% endif %}
@@ -47,7 +55,7 @@
     <div>Attack Type</div>
   </div>
 
-  <div class="confidence-level" style="margin-left:515px; text-align:center;">
+  <div class="confidence-level" style="margin-left:455px; text-align:center;">
     <div>Model</div>
     <div>Confidence Level</div>
   </div>
@@ -176,10 +184,11 @@
 {% block scripts %}
 <script>
 
-function applyTypeFilter() {
+function applyFilters() {
     const type = document.getElementById('type-filter').value;
+    const sort = document.getElementById('sort-filter').value;
     const severity = '{{ severity }}';
-    window.location.href = `/alerts?severity=${severity}&type=${encodeURIComponent(type)}`;
+    window.location.href = `/alerts?severity=${severity}&type=${encodeURIComponent(type)}&sort=${encodeURIComponent(sort)}`;
 }
 
 function filterAlerts() {
@@ -188,10 +197,11 @@ function filterAlerts() {
 
     rows.forEach(row => {
         const prediction = row.dataset.prediction.toLowerCase();
-
-        row.style.display = prediction.includes(search)
-            ? 'flex'
-            : 'none';
+        if (prediction.includes(search)) {
+            row.classList.remove('hidden-row');
+        } else {
+            row.classList.add('hidden-row');
+        }
     });
 }
 

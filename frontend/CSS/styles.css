@@ -586,3 +586,4 @@ body {
   text-transform: uppercase;
   font-size: 10px;
 }
+.hidden-row { display: none !important; }

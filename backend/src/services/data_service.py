@@ -126,6 +126,7 @@ def _resolve_uploads(file_ids, user_id):
 
     return uploads
 
+
 def run_analysis(file_ids, user_id):
     uploads = _resolve_uploads(file_ids, user_id)
     if not uploads:
@@ -249,12 +250,25 @@ def run_analysis(file_ids, user_id):
 
 
 # ── ALERTS ────────────────────────────────────────────────────
-def get_alert_feed(user_id, role, severity, attack_type):
-    query = _alert_query(user_id, role).order_by(Alert.created_at.desc())
+def get_alert_feed(user_id, role, severity, attack_type, sort='confidence_desc'):
+    query = _alert_query(user_id, role)
+
     if severity != 'all':
         query = query.filter_by(severity=severity)
     if attack_type != 'all':
         query = query.filter_by(prediction=attack_type)
+
+    if sort == 'confidence_desc':
+        query = query.order_by(Alert.confidence.desc())
+    elif sort == 'confidence_asc':
+        query = query.order_by(Alert.confidence.asc())
+    elif sort == 'newest':
+        query = query.order_by(Alert.created_at.desc())
+    elif sort == 'oldest':
+        query = query.order_by(Alert.created_at.asc())
+    else:
+        query = query.order_by(Alert.confidence.desc())  # default
+
     return [a.to_dict() for a in query.limit(100).all()]
 
 def get_alert_detail(user_id, role, alert_id):

@@ -41,6 +41,19 @@ def admin_required(f):
     return decorated
 
 
+# for manager role required check if working
+def manager_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('pages.login'))
+        if session.get('role') != 'manager':  # change this to 'IT Administrator' later
+            return redirect(url_for('pages.dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+
 # for login and register credentials
 @pages_bp.route('/register', methods=['GET', 'POST'])
 def register():
@@ -159,17 +172,32 @@ def dashboard():
         user=session['user'], role=session['role'])
 
 # for alert feed and ticket details
+# @pages_bp.route('/alerts')
+# @login_required
+# def alert_feed():
+#     severity = request.args.get('severity', 'all')
+#     attack_type = request.args.get('type', 'all')
+#     alerts = data_service.get_alert_feed(
+#         session['user_id'], session['role'], severity, attack_type
+#     )
+#     no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
+#     return render_template('alert_feed.html',
+#         alerts=alerts, severity=severity, attack_type=attack_type,
+#         no_assignments=no_assignments,
+#         user=session['user'], role=session['role'])
+
 @pages_bp.route('/alerts')
 @login_required
 def alert_feed():
     severity = request.args.get('severity', 'all')
     attack_type = request.args.get('type', 'all')
+    sort = request.args.get('sort', 'confidence_desc')
     alerts = data_service.get_alert_feed(
-        session['user_id'], session['role'], severity, attack_type
+        session['user_id'], session['role'], severity, attack_type, sort
     )
     no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
     return render_template('alert_feed.html',
-        alerts=alerts, severity=severity, attack_type=attack_type,
+        alerts=alerts, severity=severity, attack_type=attack_type, sort=sort,
         no_assignments=no_assignments,
         user=session['user'], role=session['role'])
 
@@ -326,7 +354,7 @@ def unassign_manager():
 #         data_service.remove_assignment(int(analysis_id), int(analyst_id))
 #     return redirect(url_for('pages.assign'))
 
-# for manager page
+# for manager page ( neeed to change to manager_required later )
 @pages_bp.route('/assign-analyst', methods=['GET'])
 @login_required
 def assign_analyst():
@@ -403,3 +431,10 @@ def attack_overview():
     return render_template('insights.html',
         overview=data,
         user=session['user'], role=session['role'])
+
+
+@pages_bp.route('/simulator', methods=['GET'])
+@admin_required
+def simulator():
+    return render_template('simulator.html',
+        active_page='simulator', user=session['user'], role=session['role'])

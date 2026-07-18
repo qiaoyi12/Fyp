@@ -1,212 +1,124 @@
 {% extends "base.html" %}
 
-{% block title %}Traffic Simulator — IDS{% endblock %}
-{% block page_title %}Traffic Simulator{% endblock %}
-{% block status_text %}Ready{% endblock %}
+{% block title %}Simulator — IDS{% endblock %}
+{% block page_title %}Attack Simulator{% endblock %}
+{% block status_text %}Idle{% endblock %}
 
 {% block content %}
 
-<!-- STATUS CARDS -->
-<div class="metric-grid-4">
-
-  <div class="metric-card">
-    <div class="m-label">Simulation</div>
-    <div class="m-value blue" id="simStatus">
-      Stopped
-    </div>
-  </div>
-
-  <div class="metric-card">
-    <div class="m-label">Current Traffic</div>
-    <div class="m-value green" id="currentAttack">
-      BENIGN
-    </div>
-  </div>
-
-  <div class="metric-card">
-    <div class="m-label">Flows Generated</div>
-    <div class="m-value blue" id="flowCount">
-      0
-    </div>
-  </div>
-
-  <div class="metric-card">
-    <div class="m-label">Last Prediction</div>
-    <div class="m-value red" id="prediction">
-      -
-    </div>
-  </div>
-
+<div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;margin-bottom:20px;line-height:1.6">
+  Simulate live network traffic and see how the model classifies it in real time.
 </div>
 
 <!-- CONTROLS -->
+<div style="border:1px solid #1A3A5A;border-radius:8px;padding:20px;margin-bottom:20px;background:rgba(3,28,53,0.4)">
 
-<div class="chart-card" style="margin-top:15px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+    <div id="sim-status-dot" style="width:8px;height:8px;border-radius:50%;background:#2A4A6A"></div>
+    <div style="font-size:11px;color:#c8dff0;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px">
+      SIMULATION <span id="sim-status-text">STOPPED</span>
+    </div>
+  </div>
 
-<div class="chart-title">
-Traffic Generator
+  <div style="margin-bottom:18px">
+    <div style="font-size:10px;color:#c8dff0;font-family:'JetBrains Mono',monospace;margin-bottom:8px">
+      Attack Threshold: <span id="threshold-value" style="color:#3D8EFF">0.23</span>
+    </div>
+    <input type="range" id="threshold-slider" min="0" max="1" step="0.01" value="0.23"
+      style="width:100%;accent-color:#3D8EFF"
+      oninput="document.getElementById('threshold-value').textContent = this.value">
+  </div>
+
+  <div style="display:flex;gap:8px">
+    <button type="button" id="start-btn"
+      style="font-size:9px;padding:8px 16px;border-radius:5px;
+             background:rgba(29,185,84,0.08);border:1px solid #1A5A2A;
+             color:#1DB954;font-family:'JetBrains Mono',monospace;cursor:pointer;">
+      ▶ Start Simulation
+    </button>
+
+    <button type="button" id="stop-btn"
+      style="font-size:9px;padding:8px 16px;border-radius:5px;
+             background:rgba(231,76,60,0.08);border:1px solid #5A1A1A;
+             color:#E74C3C;font-family:'JetBrains Mono',monospace;cursor:pointer;">
+      ■ Stop Simulation
+    </button>
+
+    <button type="button" id="apply-btn"
+      style="font-size:9px;padding:8px 16px;border-radius:5px;margin-left:auto;
+             background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
+             color:#3D8EFF;font-family:'JetBrains Mono',monospace;cursor:pointer;">
+      Apply Parameters
+    </button>
+  </div>
 </div>
 
-<div style="display:flex;gap:15px;align-items:center;flex-wrap:wrap">
-
-<select id="attackType" class="form-control">
-
-<option value="mixed">Mixed</option>
-
-<option value="benign">Benign</option>
-
-<option value="dos">DoS</option>
-
-<option value="ddos">DDoS</option>
-
-<option value="portscan">Port Scan</option>
-
-<option value="web">Web Attack</option>
-
-<option value="bot">Bot</option>
-
-</select>
-
-<input
-type="number"
-id="speed"
-value="2"
-min="1"
-style="width:120px"
-class="form-control">
-
-<button
-class="btn-primary"
-onclick="startSimulation()">
-
-▶ Start
-
-</button>
-
-<button
-class="btn-danger"
-onclick="stopSimulation()">
-
-■ Stop
-
-</button>
-
+<!-- QUICK STATS -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+  <div style="border:1px solid #1A3A5A;border-radius:8px;padding:14px;background:rgba(3,28,53,0.4)">
+    <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace">FLOWS PROCESSED</div>
+    <div id="stat-flows" style="font-size:20px;color:#c8dff0;font-family:'JetBrains Mono',monospace;margin-top:4px">0</div>
+  </div>
+  <div style="border:1px solid #1A3A5A;border-radius:8px;padding:14px;background:rgba(3,28,53,0.4)">
+    <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace">ATTACKS DETECTED</div>
+    <div id="stat-attacks" style="font-size:20px;color:#E74C3C;font-family:'JetBrains Mono',monospace;margin-top:4px">0</div>
+  </div>
+  <div style="border:1px solid #1A3A5A;border-radius:8px;padding:14px;background:rgba(3,28,53,0.4)">
+    <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace">ATTACK RATE</div>
+    <div id="stat-rate" style="font-size:20px;color:#F39C12;font-family:'JetBrains Mono',monospace;margin-top:4px">0%</div>
+  </div>
+  <div style="border:1px solid #1A3A5A;border-radius:8px;padding:14px;background:rgba(3,28,53,0.4)">
+    <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace">TOP ATTACK TYPE</div>
+    <div id="stat-top-type" style="font-size:20px;color:#3D8EFF;font-family:'JetBrains Mono',monospace;margin-top:4px">—</div>
+  </div>
 </div>
 
-</div>
+<!-- LIVE FEED + CHART -->
+<div style="display:flex;gap:20px;flex-wrap:wrap">
 
-<!-- LIVE EVENTS -->
+  <div style="flex:1;min-width:320px">
+    <div class="sec-title">Live Alert Feed</div>
+    <div id="sim-feed"
+      style="border:1px solid #1A3A5A;border-radius:8px;padding:14px;height:280px;overflow-y:auto;
+             font-size:11px;color:#c8dff0;font-family:'JetBrains Mono',monospace;line-height:1.9;
+             background:rgba(3,28,53,0.4)">
+      <div style="color:#2A4A6A">No simulation running. Start a simulation to see live traffic here.</div>
+    </div>
+  </div>
 
-<div class="chart-card" style="margin-top:15px">
-
-<div class="chart-title">
-
-Live Traffic
-
-</div>
-
-<div
-id="trafficLog"
-style="
-height:350px;
-overflow:auto;
-font-family:JetBrains Mono;
-font-size:12px">
-
-</div>
+  <div style="flex:1;min-width:320px">
+    <div class="sec-title">Attacks per Second (Last 60s)</div>
+    <div style="border:1px solid #1A3A5A;border-radius:8px;padding:14px;height:280px;
+                background:rgba(3,28,53,0.4);display:flex;align-items:center;justify-content:center">
+      <canvas id="attacks-chart"></canvas>
+    </div>
+  </div>
 
 </div>
 
 {% endblock %}
 
 {% block scripts %}
-
 <script>
+  // Placeholder wiring only — no fake data generation.
+  // Hook these up to your real backend / websocket / polling endpoint later.
 
-function startSimulation(){
+  document.getElementById('start-btn').addEventListener('click', () => {
+    document.getElementById('sim-status-text').textContent = 'RUNNING';
+    document.getElementById('sim-status-dot').style.background = '#1DB954';
+    // TODO: start real simulation / open connection to backend here
+  });
 
-fetch("/simulator/start",{
+  document.getElementById('stop-btn').addEventListener('click', () => {
+    document.getElementById('sim-status-text').textContent = 'STOPPED';
+    document.getElementById('sim-status-dot').style.background = '#2A4A6A';
+    // TODO: stop real simulation / close connection here
+  });
 
-method:"POST",
-
-headers:{
-"Content-Type":"application/json"
-},
-
-body:JSON.stringify({
-
-attack:document.getElementById("attackType").value,
-
-speed:document.getElementById("speed").value
-
-})
-
-})
-
-.then(r=>r.json())
-
-.then(data=>{
-
-document.getElementById("simStatus").innerHTML="Running";
-
-});
-
-}
-
-function stopSimulation(){
-
-fetch("/simulator/stop");
-
-document.getElementById("simStatus").innerHTML="Stopped";
-
-}
-
-function refreshTraffic(){
-
-fetch("/simulator/live")
-
-.then(r=>r.json())
-
-.then(data=>{
-
-document.getElementById("flowCount").innerHTML=data.total;
-
-document.getElementById("prediction").innerHTML=data.last_prediction;
-
-document.getElementById("currentAttack").innerHTML=data.current_attack;
-
-let html="";
-
-data.logs.forEach(function(log){
-
-html+=`
-
-<div>
-
-[${log.time}]
-
-${log.source_ip}
-
-→
-
-${log.prediction}
-
-(${log.confidence}%)
-
-</div>
-
-`;
-
-});
-
-document.getElementById("trafficLog").innerHTML=html;
-
-});
-
-}
-
-setInterval(refreshTraffic,1000);
-
+  document.getElementById('apply-btn').addEventListener('click', () => {
+    const threshold = document.getElementById('threshold-slider').value;
+    // TODO: send threshold to backend here
+    console.log('Threshold to apply:', threshold);
+  });
 </script>
-
 {% endblock %}
