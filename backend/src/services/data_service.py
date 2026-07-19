@@ -1,6 +1,7 @@
 # Handles uploaded data, analysis, alerts, logs, and report summary.
 import json
 import time
+import pandas as pd
 from datetime import timedelta, datetime
 from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
 from backend.src.database.db import db
@@ -143,6 +144,12 @@ def run_analysis(file_ids, user_id):
         if error:
             return None, error, None
 
+        # keep the raw dataframe too, so we can read metadata / display-only
+        # columns (Src IP, Dst Port, Flow Duration, etc.) that aren't part
+        # of SELECTED_FEATURES
+        raw_df = pd.read_csv(upload.filepath)
+        raw_df.columns = raw_df.columns.str.strip()
+
         results = predict(X)
         for result in results:
             enriched = dict(result)
@@ -152,7 +159,7 @@ def run_analysis(file_ids, user_id):
             combined_results.append(enriched)
             global_row += 1
 
-        processed_files.append((upload, X))
+        processed_files.append((upload, X, raw_df))
 
     metrics = _estimate_model_metrics(combined_results)
     elapsed_seconds = round(time.time() - start_time, 2)
@@ -171,6 +178,8 @@ def run_analysis(file_ids, user_id):
     db.session.add(record)
     db.session.commit()
 
+    frame_lookup = {upload.id: (X, raw_df) for upload, X, raw_df in processed_files}
+
     # Group ALL predictions by type, including BENIGN
     by_type = {}
     for r in combined_results:
@@ -178,11 +187,13 @@ def run_analysis(file_ids, user_id):
             by_type[r['prediction']] = []
         by_type[r['prediction']].append(r)
 
-    # IP stats — across all rows (now includes BENIGN too)
+    # IP stats — now using the REAL source IP from the dataset
     ip_counts = {}
     for r in [row for rows in by_type.values() for row in rows]:
-        row_idx = r['row']
-        source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
+        _, raw_frame = frame_lookup[r['source_upload_id']]
+        raw_row = raw_frame.iloc[r['source_row']]
+        source_ip = str(raw_row.get('Src IP', 'Unknown'))
+
         if source_ip not in ip_counts:
             ip_counts[source_ip] = {'ip': source_ip, 'count': 0, 'types': {}, 'max_severity': 'normal'}
         entry = ip_counts[source_ip]
@@ -198,15 +209,14 @@ def run_analysis(file_ids, user_id):
 
     selected = []
     for label, rows in by_type.items():
-        # ascending confidence — least confident (most uncertain) predictions first,
-        # since those need analyst review most
         selected.extend(sorted(rows, key=lambda x: x['confidence'])[:TICKETS_PER_TYPE_MAX])
 
-    frame_lookup = {upload.id: X for upload, X in processed_files}
     for r in selected:
-        row_data = frame_lookup[r['source_upload_id']].iloc[r['source_row']]
+        X_frame, raw_frame = frame_lookup[r['source_upload_id']]
+        row_data = X_frame.iloc[r['source_row']]       # model features (30 selected)
+        raw_row = raw_frame.iloc[r['source_row']]       # full original row (metadata + everything else)
         row_idx = r['row']
-        source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
+        source_ip = str(raw_row.get('Src IP', 'Unknown'))
 
         severity = 'normal' if r['prediction'] == 'BENIGN' else r['severity']
 
@@ -219,35 +229,34 @@ def run_analysis(file_ids, user_id):
             confidence=r['confidence'],
             xgb_vote=r['xgb_vote'],
             rf_vote=r['rf_vote'],
-            dest_port=int(row_data['Destination Port']),
-            flow_duration=round(float(row_data['Flow Duration']), 2),
-            flow_pkts_s=round(float(row_data['Flow Packets/s']), 2),
+            dest_port=int(row_data['Dst Port']),
+            flow_duration=round(float(raw_row.get('Flow Duration', 0)), 2),
+            flow_pkts_s=round(float(raw_row.get('Flow Packets/s', 0)), 2),
             source_ip=source_ip,
+            dest_ip=str(raw_row.get('Dst IP', 'Unknown')), 
         )
         db.session.add(alert)
         db.session.flush()  # generates alert.id
 
         detail = AlertDetail(
-            alert_id=alert.id,
-            flow_duration=round(float(row_data['Flow Duration']), 2),
-            flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
-            flow_packets_s=round(float(row_data['Flow Packets/s']), 2),
-            total_fwd_packets=int(row_data['Total Fwd Packets']),
-            total_backward_packets=int(row_data['Total Backward Packets']),
-            packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
-            average_packet_size=round(float(row_data['Average Packet Size']), 2),
-            syn_flag_count=int(row_data['SYN Flag Count']),
-            ack_flag_count=int(row_data['ACK Flag Count']),
-            psh_flag_count=int(row_data['PSH Flag Count']),
-            init_win_bytes_forward=int(row_data['Init_Win_bytes_forward']),
-            init_win_bytes_backward=int(row_data['Init_Win_bytes_backward']),
-        )
+                alert_id=alert.id,
+                flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
+                total_backward_packets=int(row_data['Total Bwd packets']),
+                packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
+                average_packet_size=round(float(row_data['Average Packet Size']), 2),
+                ack_flag_count=int(row_data['ACK Flag Count']),
+                psh_flag_count=int(row_data['PSH Flag Count']),
+                init_win_bytes_forward=int(row_data['FWD Init Win Bytes']),
+                init_win_bytes_backward=int(row_data['Bwd Init Win Bytes']),
+                packet_length_max=round(float(row_data['Packet Length Max']), 2),
+                packet_length_std=round(float(row_data['Packet Length Std']), 2),
+                bwd_iat_max=round(float(row_data['Bwd IAT Max']), 2),
+            )
         db.session.add(detail)
 
-    db.session.commit()  # single commit for the whole batch
+    db.session.commit()
 
     return record, None, metrics
-
 
 # ── ALERTS ────────────────────────────────────────────────────
 def get_alert_feed(user_id, role, severity, attack_type, sort='confidence_desc'):
@@ -308,9 +317,10 @@ def get_logs(user_id, role, filter_type):
     alerts = query.order_by(Alert.created_at.desc()).limit(500).all()
 
     logs = [{
+        'id':          a.id,
         'timestamp':   a.created_at.strftime('%Y-%m-%d %H:%M:%S'),
         'source':      a.source_ip or '—',
-        'destination': f'192.168.1.1:{a.dest_port}' if a.dest_port else '—',
+        'destination': a.dest_ip or '—',
         'type':        a.prediction,
         'protocol':    'TCP',
         'severity':    a.severity,

@@ -22,15 +22,9 @@ upload_bp = Blueprint('upload', __name__)
 
 ALLOWED_EXTENSIONS = {'csv'}
 
-REQUIRED_COLUMNS = [
-    'Destination Port', 'Flow Duration', 'Total Fwd Packets',
-    'Total Backward Packets', 'Total Length of Fwd Packets',
-    'Total Length of Bwd Packets', 'Flow Bytes/s', 'Flow Packets/s',
-    'Flow IAT Mean', 'Flow IAT Std', 'Fwd Packet Length Mean',
-    'Bwd Packet Length Mean', 'Fwd Packets/s', 'Bwd Packets/s',
-    'SYN Flag Count', 'ACK Flag Count', 'PSH Flag Count',
-    'Init_Win_bytes_forward', 'Init_Win_bytes_backward'
-]
+from backend.src.ml.preprocess import SELECTED_FEATURES
+
+REQUIRED_COLUMNS = SELECTED_FEATURES
 
 
 # Shared helper used by both API and page routes.

@@ -59,16 +59,6 @@
     </div>
 
     <div class="packet-row">
-        <span>Flow Duration</span>
-        <span>{{ detail.flow_duration }} ms</span>
-    </div>
-
-    <div class="packet-row">
-        <span>Flow Packets/s</span>
-        <span>{{ detail.flow_packets_s }}</span>
-    </div>
-
-    <div class="packet-row">
         <span>Flow Bytes/s</span>
         <span>{{ detail.flow_bytes_s }}</span>
     </div>
@@ -76,11 +66,6 @@
     <hr class="packet-divider">
 
     <div class="packet-section-title">Packet Statistics</div>
-
-    <div class="packet-row">
-        <span>Forward Packets</span>
-        <span>{{ detail.total_fwd_packets }}</span>
-    </div>
 
     <div class="packet-row">
         <span>Backward Packets</span>
@@ -92,14 +77,19 @@
         <span>{{ detail.average_packet_size }} bytes</span>
     </div>
 
+    <div class="packet-row">
+        <span>Max Packet Length</span>
+        <span>{{ detail.packet_length_max }} bytes</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Packet Length Std Dev</span>
+        <span>{{ detail.packet_length_std }}</span>
+    </div>
+
     <hr class="packet-divider">
 
     <div class="packet-section-title">TCP Flags</div>
-
-    <div class="packet-row">
-        <span>SYN Count</span>
-        <span>{{ detail.syn_flag_count }}</span>
-    </div>
 
     <div class="packet-row">
         <span>ACK Count</span>
@@ -109,6 +99,25 @@
     <div class="packet-row">
         <span>PSH Count</span>
         <span>{{ detail.psh_flag_count }}</span>
+    </div>
+
+    <hr class="packet-divider">
+
+    <div class="packet-section-title">Window & Timing</div>
+
+    <div class="packet-row">
+        <span>Fwd Init Window Bytes</span>
+        <span>{{ detail.init_win_bytes_forward }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Bwd Init Window Bytes</span>
+        <span>{{ detail.init_win_bytes_backward }}</span>
+    </div>
+
+    <div class="packet-row">
+        <span>Max Backward Inter-Arrival Time</span>
+        <span>{{ detail.bwd_iat_max }} µs</span>
     </div>
 
 </div>

@@ -1,15 +1,41 @@
 import pandas as pd
 import numpy as np
 
+# SELECTED_FEATURES = [
+#     'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
+#     'Total Length of Fwd Packets', 'Total Length of Bwd Packets',
+#     'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std',
+#     'Fwd IAT Mean', 'Bwd IAT Mean', 'Packet Length Mean', 'Packet Length Std',
+#     'Destination Port', 'Average Packet Size', 'Fwd Packet Length Mean',
+#     'Bwd Packet Length Mean', 'Fwd Packets/s', 'Bwd Packets/s',
+#     'SYN Flag Count', 'ACK Flag Count', 'PSH Flag Count',
+#     'Init_Win_bytes_forward', 'Init_Win_bytes_backward'
+# ]
+
 SELECTED_FEATURES = [
-    'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
-    'Total Length of Fwd Packets', 'Total Length of Bwd Packets',
-    'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std',
-    'Fwd IAT Mean', 'Bwd IAT Mean', 'Packet Length Mean', 'Packet Length Std',
-    'Destination Port', 'Average Packet Size', 'Fwd Packet Length Mean',
-    'Bwd Packet Length Mean', 'Fwd Packets/s', 'Bwd Packets/s',
-    'SYN Flag Count', 'ACK Flag Count', 'PSH Flag Count',
-    'Init_Win_bytes_forward', 'Init_Win_bytes_backward'
+    'Packet Length Mean', 'Average Packet Size', 'Bwd Packet Length Max',
+    'Bwd Segment Size Avg', 'Packet Length Max', 'Bwd Header Length',
+    'Fwd Packet Length Max', 'Bwd Packet Length Mean', 'Dst Port',
+    'Total Length of Bwd Packet', 'Packet Length Std', 'Fwd PSH Flags',
+    'Fwd Header Length', 'ECE Flag Count', 'Fwd Segment Size Avg',
+    'Fwd Seg Size Min', 'Bwd Init Win Bytes', 'Bwd PSH Flags',
+    'Subflow Bwd Bytes', 'PSH Flag Count', 'Flow Bytes/s',
+    'Packet Length Variance', 'Total Length of Fwd Packet', 'CWR Flag Count',
+    'Bwd IAT Max', 'FWD Init Win Bytes', 'Fwd Packet Length Std',
+    'Total Bwd packets', 'ACK Flag Count', 'Fwd Act Data Pkts',
+]
+
+
+# ============================================================
+# METADATA
+# Not used by ML models, but useful for frontend/dashboard
+# ============================================================
+METADATA_COLUMNS = [
+    'Timestamp',
+    'Flow ID',
+    'Src IP',
+    'Dst IP',
+    'Src Port',
 ]
 
 def preprocess_csv(filepath):

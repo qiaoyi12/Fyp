@@ -131,6 +131,7 @@ class Alert(db.Model):
     flow_duration  = db.Column(db.Float)
     flow_pkts_s    = db.Column(db.Float)
     source_ip      = db.Column(db.String(45))
+    dest_ip        = db.Column(db.String(45))
     tag = db.Column(db.String(30), default="Unreviewed")
     remarks        = db.Column(db.Text, default='')
 
@@ -162,6 +163,7 @@ class Alert(db.Model):
             'dest_port':   self.dest_port,
             'flow_pkts_s': self.flow_pkts_s,
             'source_ip':   self.source_ip,
+            'dest_ip':     self.dest_ip,
             'reason':      reason,
             'row_index':   self.row_index,
             'xgb_vote':    self.xgb_vote,
@@ -184,23 +186,22 @@ class AlertDetail(db.Model):
         unique=True
     )
 
-    flow_duration = db.Column(db.Float)
     flow_bytes_s = db.Column(db.Float)
-    flow_packets_s = db.Column(db.Float)
 
-    total_fwd_packets = db.Column(db.Integer)
     total_backward_packets = db.Column(db.Integer)
 
     packet_length_mean = db.Column(db.Float)
     average_packet_size = db.Column(db.Float)
 
-    syn_flag_count = db.Column(db.Integer)
     ack_flag_count = db.Column(db.Integer)
     psh_flag_count = db.Column(db.Integer)
 
     init_win_bytes_forward = db.Column(db.Integer)
     init_win_bytes_backward = db.Column(db.Integer)
 
+    packet_length_max = db.Column(db.Float)
+    packet_length_std = db.Column(db.Float)
+    bwd_iat_max = db.Column(db.Float)
 
 # top attacking source ip addresses the IT Admin maintains alerts from these IPs
 # get flagged as a blacklist match in the Report Analysis page.
@@ -220,4 +221,32 @@ class IPBlacklist(db.Model):
             'reason': self.reason,
             # use this for time now as we dont have the exact time stamp
             'added_at': self.added_at.strftime('%Y-%m-%d %H:%M'),
+        }
+
+# for all traffic logs saved 
+class TrafficLog(db.Model):
+    __tablename__ = 'traffic_logs'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    analysis_id   = db.Column(db.Integer, db.ForeignKey('analysis_results.id'), nullable=False)
+    user_id       = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    row_index     = db.Column(db.Integer)
+    source_ip     = db.Column(db.String(45))
+    dest_ip       = db.Column(db.String(45))
+    dest_port     = db.Column(db.Integer)
+    prediction    = db.Column(db.String(50))
+    severity      = db.Column(db.String(20))
+    confidence    = db.Column(db.Float)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id':          self.id,
+            'timestamp':   self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'source':      self.source_ip or '—',
+            'destination': f'{self.dest_ip}:{self.dest_port}' if self.dest_ip and self.dest_port else '—',
+            'type':        self.prediction,
+            'protocol':    'TCP',
+            'severity':    self.severity,
+            'flagged':     self.severity in ('high', 'medium'),
         }
