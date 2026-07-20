@@ -95,9 +95,15 @@
         RF: {{ alert.rf_vote }}
         &nbsp;·&nbsp;
 
-        <span style="color:{% if alert.consensus == '✓ Consensus' %}#1DB954{% else %}#F39C12{% endif %}">
+        {% if alert.consensus == '✓ Consensus' %}
+        <span style="color:#1DB954">
           {{ alert.consensus }}
         </span>
+        {% else %}
+        <span style="color:#F39C12">
+          {{ alert.consensus }}
+        </span>
+        {% endif %}
       </div>
     </div>
 

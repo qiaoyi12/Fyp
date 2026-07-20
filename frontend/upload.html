@@ -23,8 +23,7 @@
       onchange="uploadFile(this)" />
   </div>
 
-  <div id="loading-bar" style="display:none;
-<div id=" loading-bar" style="display:none;margin-top:10px;">
+  <div id="loading-bar" style="display:none;margin-top:10px;">
 
     <div id="loading-text" style="margin-bottom:6px;
                 color:#3D8EFF;
@@ -67,9 +66,15 @@
     <span style="color:#E74C3C;font-size:10px">✕</span>
     {% endif %}
     <div style="flex:1">{{ item.name }}</div>
-    <div style="font-size:9px;color:{% if item.status == 'success' %}#1DB954{% else %}#E74C3C{% endif %}">
+    {% if item.status == 'success' %}
+    <div style="font-size:9px;color:#1DB954">
       {{ item.detail }}
     </div>
+    {% else %}
+    <div style="font-size:9px;color:#E74C3C">
+      {{ item.detail }}
+    </div>
+    {% endif %}
     {% if item.status == 'success' %}
     <label style="font-size:9px;color:#1A3050;display:flex;align-items:center;gap:6px;">
       <input type="checkbox" name="file_ids" value="{{ item.id }}">

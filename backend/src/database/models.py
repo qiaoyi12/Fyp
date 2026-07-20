@@ -135,6 +135,15 @@ class Alert(db.Model):
     tag = db.Column(db.String(30), default="Unreviewed")
     remarks        = db.Column(db.Text, default='')
 
+    # per-ticket assignment (separate from AnalysisAssignment, which assigns
+    # a whole analysis run to a manager - this assigns one alert to one analyst)
+    assigned_analyst_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    assignment_source   = db.Column(db.String(20), nullable=True)   # 'agent' or 'manual'
+    assignment_reason   = db.Column(db.Text, nullable=True)
+    assigned_at         = db.Column(db.DateTime, nullable=True)
+
+    assigned_analyst = db.relationship('User', foreign_keys=[assigned_analyst_id])
+
     detail = db.relationship(
         "AlertDetail",
         backref="alert",
