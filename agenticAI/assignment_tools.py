@@ -5,12 +5,12 @@ get_unassigned_tickets() and get_staff_list() are plain data-fetching
 functions - the distribution decision (exactly 5 per analyst) is computed
 deterministically in distribution_plan.py, NOT decided by the LLM.
 
-assign_ticket() is the one function exposed to the agent as a tool
-(@function_tool) - it's the actual write action the agent performs.
+assign_ticket() performs the actual write action for an assignment. It is
+called directly from assignment_agent.py's plain Python loop, not invoked
+as an LLM tool call - keep it a plain function (no @function_tool).
 """
 
 from datetime import datetime
-from agents import function_tool
 
 from backend.src.database.models import Alert, User
 from backend.src.database.db import db
@@ -40,12 +40,14 @@ def get_staff_list():
     """
     Plain function (not an agent tool) - fetch all SOC analysts eligible
     to receive tickets. Role string confirmed as 'analyst' (lowercase).
+    Includes each analyst's seniority level ('junior'/'senior'), used by
+    distribution_plan.build_distribution_plan() to route high-severity
+    tickets to senior analysts first.
     """
     analysts = User.query.filter_by(role='analyst').all()
-    return [{"staff_id": u.id, "name": u.username} for u in analysts]
+    return [{"staff_id": u.id, "name": u.username, "level": u.level} for u in analysts]
 
 
-@function_tool
 def assign_ticket(ticket_id: int, staff_id: int, reason: str) -> dict:
     """
     Assign a single alert/ticket to an analyst and store the

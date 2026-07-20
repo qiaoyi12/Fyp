@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Analysts — IDS{% endblock %}
+{% block page_title %}Manage Analysts{% endblock %}
+{% block status_text %}System Operational{% endblock %}
+
+{% block content %}
+
+{% if message %}
+<div class="msg-success">✓ {{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="msg-error">✕ {{ error }}</div>
+{% endif %}
+
+<div class="sec-title">SOC Analyst Seniority</div>
+<div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;margin-bottom:14px">
+  Senior analysts are preferred for high-severity tickets during AI auto-assignment.
+</div>
+
+{% if analysts %}
+{% for analyst in analysts %}
+<div class="upload-hist-row" style="gap:10px;align-items:center;margin-bottom:8px">
+  <div class="sb-avatar" style="width:20px;height:20px;font-size:8px;line-height:20px">
+    {{ analyst.username[:2].upper() }}
+  </div>
+
+  <div style="flex:1">
+    <div style="font-size:11px;color:#c8dff0;font-family:'JetBrains Mono',monospace">
+      {{ analyst.username }}
+    </div>
+  </div>
+
+  <form method="POST" action="/manage-analysts/level" style="display:flex;align-items:center;gap:6px">
+    <input type="hidden" name="analyst_id" value="{{ analyst.id }}">
+    <select name="level" onchange="this.form.submit()" style="font-size:9px;font-family:'JetBrains Mono',monospace;
+        background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;color:#c8dff0;
+        border-radius:4px;padding:4px 8px;cursor:pointer;">
+      <option value="junior" {% if analyst.level == 'junior' %}selected{% endif %}>Junior</option>
+      <option value="senior" {% if analyst.level == 'senior' %}selected{% endif %}>Senior</option>
+    </select>
+  </form>
+</div>
+{% endfor %}
+{% else %}
+<div style="font-size:11px;color:#2A4A6A;font-family:'JetBrains Mono',monospace;padding:20px 0">
+  No SOC Analyst accounts found.
+</div>
+{% endif %}
+
+{% endblock %}
