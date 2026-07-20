@@ -40,7 +40,7 @@
         <span style="font-size:9px;color:#1DB954;font-family:'JetBrains Mono',monospace">✓</span>
 
         {% for manager in a.assigned_managers %}
-        <button type="button" onclick="removeAssignment({{ a.id }}, {{ manager.manager_id }})" style="font-size:9px;font-family:'JetBrains Mono',monospace;
+        <button type="button" onclick="removeAssignment('{{ a.id }}', '{{ manager.manager_id }}')" style="font-size:9px;font-family:'JetBrains Mono',monospace;
            background:rgba(231,76,60,0.08);
            border:1px solid #1A0808;
            color:#c8dff0;
@@ -79,7 +79,7 @@
       <div class="f-btn" id="manager-btn-{{ manager.id }}"
         style="display:flex;align-items:center;gap:6px;padding:6px 12px">
         <input type="radio" name="manager_id" value="{{ manager.id }}" required style="accent-color:#3D8EFF"
-          onchange="selectManagerBtn({{ manager.id }})">
+          onchange="selectManagerBtn('{{ manager.id }}')">
         <div class="sb-avatar" style="width:20px;height:20px;font-size:8px;line-height:20px">
           {{ manager.username[:2].upper() }}
         </div>
