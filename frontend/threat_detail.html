@@ -40,7 +40,7 @@
   <div class="d-label">Model Confidence Score</div>
   <div class="conf-row">
     <div class="conf-bar-wrap">
-      <div class="conf-fill" style="width:{{ alert.confidence }}%"></div>
+      <div class="conf-fill" id="conf-fill" data-confidence="{{ alert.confidence }}"></div>
     </div>
     <span style="font-size:14px;color:#E74C3C;font-family:'JetBrains Mono',monospace;font-weight:600">
       {{ alert.confidence }}%
@@ -113,4 +113,16 @@
 
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const fill = document.getElementById('conf-fill');
+    if (!fill) return;
+    const value = Number(fill.dataset.confidence);
+    const safeValue = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
+    fill.style.width = safeValue + '%';
+  })();
+</script>
 {% endblock %}

@@ -38,8 +38,9 @@
     {% set max_count = overview.volume_trend | map(attribute='count') | max %}
     {% for point in overview.volume_trend %}
     <div class="trend-bar-col">
+       {% set volume_height = (point.count / max_count * 100) if max_count else 0 %}
       <div class="trend-bar volume"
-           style="height: {{ (point.count / max_count * 100) if max_count else 0 }}%;"
+         data-height="{{ volume_height }}"
            title="{{ point.count }} alerts on {{ point.date }}"></div>
       <div class="trend-bar-label">{{ point.date[-2:] }}</div>
     </div>
@@ -56,9 +57,9 @@
     <div class="trend-bar-col">
       <div class="trend-bar-stack" style="height: 100px;">
         {% if day_total %}
-        <div class="stack-seg high" style="height: {{ point.high / day_total * 100 }}%;" title="High: {{ point.high }}"></div>
-        <div class="stack-seg medium" style="height: {{ point.medium / day_total * 100 }}%;" title="Medium: {{ point.medium }}"></div>
-        <div class="stack-seg normal" style="height: {{ point.normal / day_total * 100 }}%;" title="Normal: {{ point.normal }}"></div>
+        <div class="stack-seg high" data-height="{{ point.high / day_total * 100 }}" title="High: {{ point.high }}"></div>
+        <div class="stack-seg medium" data-height="{{ point.medium / day_total * 100 }}" title="Medium: {{ point.medium }}"></div>
+        <div class="stack-seg normal" data-height="{{ point.normal / day_total * 100 }}" title="Normal: {{ point.normal }}"></div>
         {% endif %}
       </div>
       <div class="trend-bar-label">{{ point.date[-2:] }}</div>
@@ -131,4 +132,16 @@
   </table>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    document.querySelectorAll('[data-height]').forEach((el) => {
+      const raw = Number(el.dataset.height);
+      const safe = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
+      el.style.height = safe + '%';
+    });
+  })();
+</script>
 {% endblock %}

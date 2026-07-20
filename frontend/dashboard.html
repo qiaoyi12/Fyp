@@ -100,14 +100,29 @@
 
       <div class="pie-legend">
         {% for item in threat_distribution %}
+        {% if attack_type == item.type %}
         <a href="/dashboard?type={{ item.type }}"
           class="pie-legend-item"
           data-type="{{ item.type }}"
-          style="text-decoration:none; cursor:pointer; transition: opacity 0.15s ease, transform 0.15s ease; {% if attack_type == item.type %}outline:1px solid {{ item.colour }}; border-radius:4px;{% endif %}">
-          <div class="pie-legend-dot" style="background:{{ item.colour }}"></div>
+          data-colour="{{ item.colour }}"
+          data-active="true"
+          style="text-decoration:none; cursor:pointer; transition: opacity 0.15s ease, transform 0.15s ease;">
+          <div class="pie-legend-dot"></div>
           <div class="pie-legend-label">{{ item.type }}</div>
-          <div class="pie-legend-pct" style="color:{{ item.colour }}">{{ item.pct }}% ({{ item.count }})</div>
+          <div class="pie-legend-pct">{{ item.pct }}% ({{ item.count }})</div>
         </a>
+        {% else %}
+        <a href="/dashboard?type={{ item.type }}"
+          class="pie-legend-item"
+          data-type="{{ item.type }}"
+          data-colour="{{ item.colour }}"
+          data-active="false"
+          style="text-decoration:none; cursor:pointer; transition: opacity 0.15s ease, transform 0.15s ease;">
+          <div class="pie-legend-dot"></div>
+          <div class="pie-legend-label">{{ item.type }}</div>
+          <div class="pie-legend-pct">{{ item.pct }}% ({{ item.count }})</div>
+        </a>
+        {% endif %}
         {% endfor %}
       </div>
       {% if attack_type != 'all' %}
@@ -152,6 +167,18 @@
   const legendItems = document.querySelectorAll('.pie-legend-item');
   const tooltip = document.getElementById('pie-tooltip');
   const pieWrap = document.querySelector('.pie-wrap');
+
+  legendItems.forEach((item) => {
+    const colour = item.dataset.colour;
+    const dot = item.querySelector('.pie-legend-dot');
+    const pct = item.querySelector('.pie-legend-pct');
+    if (dot && colour) dot.style.background = colour;
+    if (pct && colour) pct.style.color = colour;
+    if (item.dataset.active === 'true' && colour) {
+      item.style.outline = '1px solid ' + colour;
+      item.style.borderRadius = '4px';
+    }
+  });
 
   function highlight(type) {
     slices.forEach(s => {
