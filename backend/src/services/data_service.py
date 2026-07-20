@@ -3,7 +3,7 @@ import json
 import time
 import pandas as pd
 from datetime import timedelta, datetime
-from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
+from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User, TrafficLog
 from backend.src.database.db import db
 from backend.src.ml.preprocess import preprocess_csv
 from backend.src.ml.predict import predict, get_summary, estimate_model_metrics
@@ -127,6 +127,38 @@ def _resolve_uploads(file_ids, user_id):
 
     return uploads
 
+# to make sure that the traffic is shown specifically to the assigned analyst or manager.
+def _traffic_log_query(user_id, role):
+    if role in ('analyst', 'manager'):
+        analysis_ids = _get_assigned_analysis_ids(user_id, role)
+        if not analysis_ids:
+            return TrafficLog.query.filter_by(id=None)
+        return TrafficLog.query.filter(TrafficLog.analysis_id.in_(analysis_ids))
+    return TrafficLog.query.filter_by(user_id=user_id)
+
+# for all traffic logs
+def _bulk_insert_traffic_logs(record, combined_results, frame_lookup, user_id):
+    """Persist a lightweight record of every processed row (not just the capped alert subset)."""
+    traffic_log_rows = []
+    for r in combined_results:
+        X_frame, raw_frame = frame_lookup[r['source_upload_id']]
+        raw_row = raw_frame.iloc[r['source_row']]
+
+        traffic_log_rows.append({
+            'analysis_id': record.id,
+            'user_id': user_id,
+            'row_index': r['row'],
+            'source_ip': str(raw_row.get('Src IP', 'Unknown')),
+            'dest_ip': str(raw_row.get('Dst IP', 'Unknown')),
+            'dest_port': int(X_frame.iloc[r['source_row']]['Dst Port']),
+            'prediction': r['prediction'],
+            'severity': 'normal' if r['prediction'] == 'BENIGN' else r['severity'],
+            'confidence': r['confidence'],
+        })
+
+    db.session.bulk_insert_mappings(TrafficLog, traffic_log_rows)
+    db.session.commit()
+
 
 def run_analysis(file_ids, user_id):
     uploads = _resolve_uploads(file_ids, user_id)
@@ -205,6 +237,9 @@ def run_analysis(file_ids, user_id):
     record.ip_stats = json.dumps(list(ip_counts.values()))
     db.session.commit()
 
+
+    # used for traffic logs, which are a complete record of all rows processed (not just the capped alert subset)
+    _bulk_insert_traffic_logs(record, combined_results, frame_lookup, user_id)   
     TICKETS_PER_TYPE_MAX = 80  # cap per type, including BENIGN
 
     selected = []
@@ -306,29 +341,120 @@ def update_alert_remarks(alert_id, remarks):
 
 
 # ── LOGS ──────────────────────────────────────────────────────
-def get_logs(user_id, role, filter_type):
-    query = _alert_query(user_id, role)
-    if filter_type == 'flagged':
-        query = query.filter(Alert.severity.in_(['high', 'medium']))
-    elif filter_type == 'normal':
-        query = query.filter_by(severity='normal')
+def get_logs(user_id, role, filter_type, search='', page=1, per_page=80):
+    if not search:
+        # DEFAULT VIEW — mirror what's already in Alert Feed
+        query = _alert_query(user_id, role)
+        if filter_type == 'flagged':
+            query = query.filter(Alert.severity.in_(['high', 'medium']))
+        elif filter_type == 'normal':
+            query = query.filter_by(severity='normal')
 
-    total = query.count()
-    alerts = query.order_by(Alert.created_at.desc()).limit(500).all()
+        total = query.count()
+        alerts_page = query.order_by(Alert.created_at.desc()) \
+            .offset((page - 1) * per_page).limit(per_page).all()
 
-    logs = [{
-        'id':          a.id,
-        'timestamp':   a.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'source':      a.source_ip or '—',
-        'destination': a.dest_ip or '—',
-        'type':        a.prediction,
-        'protocol':    'TCP',
-        'severity':    a.severity,
-        'flagged':     a.severity in ('high', 'medium'),
-    } for a in alerts]
+        logs = [{
+            'id':          a.id,
+            'timestamp':   a.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'source':      a.source_ip or '—',
+            'destination': a.dest_ip or '—',
+            'type':        a.prediction,
+            'protocol':    'TCP',
+            'severity':    a.severity,
+            'flagged':     a.severity in ('high', 'medium'),
+            'alert_id':    a.id,   # already a real alert, always show "View Alert"
+        } for a in alerts_page]
 
-    return logs, total
+        return logs, total
 
+    else:
+        # SEARCH MODE — search the FULL traffic log, not just existing alerts
+        query = _traffic_log_query(user_id, role)
+        if filter_type == 'flagged':
+            query = query.filter(TrafficLog.severity.in_(['high', 'medium']))
+        elif filter_type == 'normal':
+            query = query.filter_by(severity='normal')
+
+        query = query.filter(
+            db.or_(
+                TrafficLog.source_ip.ilike(f'%{search}%'),
+                TrafficLog.dest_ip.ilike(f'%{search}%'),
+                TrafficLog.prediction.ilike(f'%{search}%'),
+            )
+        )
+
+        total = query.count()
+        logs_page = query.order_by(TrafficLog.created_at.desc()) \
+            .offset((page - 1) * per_page).limit(per_page).all()
+
+        logs = []
+        for log in logs_page:
+            log_dict = log.to_dict()
+            existing_alert = Alert.query.filter_by(
+                analysis_id=log.analysis_id,
+                row_index=log.row_index
+            ).first()
+            log_dict['alert_id'] = existing_alert.id if existing_alert else None
+            logs.append(log_dict)
+
+        return logs, total
+
+# to create alert if needed 
+def create_alert_from_traffic_log(traffic_log):
+    """Escalate a TrafficLog row into a full Alert with detail, computed on demand."""
+    existing = Alert.query.filter_by(
+        analysis_id=traffic_log.analysis_id,
+        row_index=traffic_log.row_index
+    ).first()
+    if existing:
+        return existing
+
+    analysis = AnalysisResult.query.get(traffic_log.analysis_id)
+    upload = UploadedFile.query.get(analysis.file_id)
+
+    X, error = preprocess_csv(upload.filepath)
+    raw_df = pd.read_csv(upload.filepath)
+    raw_df.columns = raw_df.columns.str.strip()
+
+    row_data = X.iloc[traffic_log.row_index]
+    raw_row = raw_df.iloc[traffic_log.row_index]
+
+    result = predict(X.iloc[[traffic_log.row_index]])[0]
+
+    alert = Alert(
+        analysis_id=traffic_log.analysis_id,
+        user_id=traffic_log.user_id,
+        row_index=traffic_log.row_index,
+        prediction=result['prediction'],
+        severity=result['severity'],
+        confidence=result['confidence'],
+        xgb_vote=result['xgb_vote'],
+        rf_vote=result['rf_vote'],
+        dest_port=int(row_data['Dst Port']),
+        dest_ip=str(raw_row.get('Dst IP', 'Unknown')),
+        source_ip=str(raw_row.get('Src IP', 'Unknown')),
+    )
+    db.session.add(alert)
+    db.session.flush()
+
+    detail = AlertDetail(
+        alert_id=alert.id,
+        flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
+        total_backward_packets=int(row_data['Total Bwd packets']),
+        packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
+        average_packet_size=round(float(row_data['Average Packet Size']), 2),
+        ack_flag_count=int(row_data['ACK Flag Count']),
+        psh_flag_count=int(row_data['PSH Flag Count']),
+        init_win_bytes_forward=int(row_data['FWD Init Win Bytes']),
+        init_win_bytes_backward=int(row_data['Bwd Init Win Bytes']),
+        packet_length_max=round(float(row_data['Packet Length Max']), 2),
+        packet_length_std=round(float(row_data['Packet Length Std']), 2),
+        bwd_iat_max=round(float(row_data['Bwd IAT Max']), 2),
+    )
+    db.session.add(detail)
+    db.session.commit()
+    return alert
 
 # ── UPLOAD HISTORY ────────────────────────────────────────────
 def get_upload_history(user_id, limit=10):

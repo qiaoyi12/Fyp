@@ -8,11 +8,20 @@
 
 <!-- FILTER BAR -->
 <div class="filter-bar">
-  <input class="search-input" type="text" id="search-input" placeholder="Search by IP address, keyword, event type..."
-    value="{{ search }}" onkeyup="filterLogs()" />
-  <a href="/logs" class="f-btn {% if filter_type == 'all' %}active{% endif %}">All Entries</a>
-  <a href="/logs?filter=flagged" class="f-btn high {% if filter_type == 'flagged' %}active{% endif %}">Flagged</a>
-  <a href="/logs?filter=normal" class="f-btn {% if filter_type == 'normal' %}active{% endif %}">Normal</a>
+  <input
+    class="search-input"
+    type="text"
+    id="search-input"
+    placeholder="Search by IP address, keyword, event type... (press Enter)"
+    value="{{ search }}"
+    onkeydown="if(event.key === 'Enter') applySearch()"
+  />
+  <a href="/logs?search={{ search }}" class="f-btn {% if filter_type == 'all' %}active{% endif %}">All Entries</a>
+  <a href="/logs?filter=flagged&search={{ search }}" class="f-btn high {% if filter_type == 'flagged' %}active{% endif %}">Flagged</a>
+  <a href="/logs?filter=normal&search={{ search }}" class="f-btn {% if filter_type == 'normal' %}active{% endif %}">Normal</a>
+  {% if search %}
+    <a href="/logs?filter={{ filter_type }}" class="f-btn clear-filter">✕ Clear Search</a>
+  {% endif %}
 </div>
 
 <!-- LOG TABLE -->
@@ -26,14 +35,13 @@
         <th>Event Type</th>
         <th>Protocol</th>
         <th>Severity</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody id="log-body">
       {% for log in logs %}
 
-
-      <tr class="{% if log.flagged %}flagged{% endif %}" data-src="{{ log.source }}" data-type="{{ log.type }}"
-        onclick="window.location.href='/alerts/{{ log.id }}'" style="cursor:pointer;">
+      <tr class="{% if log.flagged %}flagged{% endif %}" data-src="{{ log.source }}" data-type="{{ log.type }}">
         <td>{{ log.timestamp }}</td>
         <td class="{% if log.severity == 'high' %}td-high{% elif log.severity == 'medium' %}td-medium{% endif %}">
           {{ log.source }}
@@ -46,10 +54,23 @@
             {{ log.severity.upper() }}
           </span>
         </td>
+        <td>
+          {% if log.alert_id %}
+            <a href="/alerts/{{ log.alert_id }}" class="f-btn" style="font-size:9px;padding:4px 10px;display:inline-block">
+              View Alert
+            </a>
+          {% else %}
+            <form action="{{ url_for('pages.request_log_detail', log_id=log.id) }}" method="POST">
+              <button type="submit" class="f-btn" style="font-size:9px;padding:4px 10px">
+                🔍 Analyze
+              </button>
+            </form>
+          {% endif %}
+        </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" style="color:#2A4A6A;padding:20px 12px;font-family:'JetBrains Mono',monospace;">
+        <td colspan="7" style="color:#2A4A6A;padding:20px 12px;font-family:'JetBrains Mono',monospace;">
           {% if no_assignments %}No analyses assigned to you yet.{% else %}No log entries found.{% endif %}
         </td>
       </tr>
@@ -58,24 +79,19 @@
   </table>
 </div>
 
-
 <div class="table-footer">
   Showing {{ logs|length }} of {{ total }} entries
   · {{ logs|selectattr('flagged')|list|length }} flagged visible
 </div>
 
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-  function filterLogs() {
-    const search = document.getElementById('search-input').value.toLowerCase()
-    const rows = document.querySelectorAll('#log-body tr[data-src]')
-    rows.forEach(row => {
-      const src = row.dataset.src.toLowerCase()
-      const type = row.dataset.type.toLowerCase()
-      row.style.display = (src.includes(search) || type.includes(search)) ? '' : 'none'
-    })
+  function applySearch() {
+    const search = document.getElementById('search-input').value;
+    window.location.href = `/logs?filter={{ filter_type }}&search=${encodeURIComponent(search)}`;
   }
 </script>
 {% endblock %}

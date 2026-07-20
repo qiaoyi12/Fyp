@@ -2,7 +2,7 @@
 
 from flask import Blueprint, render_template, request, session, redirect, url_for
 from functools import wraps
-from backend.src.database.models import User
+from backend.src.database.models import User, TrafficLog
 from backend.src.database.db import db  
 from backend.src.services import data_service
 from backend.src.routes.upload import save_upload
@@ -252,14 +252,22 @@ def update_alert_remarks(alert_id):
 def logs():
     filter_type = request.args.get('filter', 'all')
     search = request.args.get('search', '')
+    page = request.args.get('page', 1, type=int)
     logs_data, total = data_service.get_logs(
-        session['user_id'], session['role'], filter_type
+        session['user_id'], session['role'], filter_type, search=search, page=page
     )
     no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
     return render_template('log_viewer.html',
         logs=logs_data, total=total, filter_type=filter_type, search=search,
         no_assignments=no_assignments,
         user=session['user'], role=session['role'])
+
+@pages_bp.route('/logs/<int:log_id>/analyze', methods=['POST'])
+@login_required
+def request_log_detail(log_id):
+    traffic_log = TrafficLog.query.get_or_404(log_id)
+    alert = data_service.create_alert_from_traffic_log(traffic_log)
+    return redirect(url_for('pages.threat_detail', alert_id=alert.id))
 
 # upload of csv files for admin
 @pages_bp.route('/upload', methods=['GET', 'POST'])
@@ -432,9 +440,3 @@ def attack_overview():
         overview=data,
         user=session['user'], role=session['role'])
 
-
-@pages_bp.route('/simulator', methods=['GET'])
-@admin_required
-def simulator():
-    return render_template('simulator.html',
-        active_page='simulator', user=session['user'], role=session['role'])
