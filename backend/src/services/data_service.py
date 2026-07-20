@@ -2,6 +2,7 @@
 import json
 import time
 from datetime import timedelta, datetime
+from sqlalchemy import or_
 from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
 from backend.src.database.db import db
 from backend.src.ml.preprocess import preprocess_csv
@@ -245,9 +246,6 @@ def run_analysis(file_ids, user_id):
 
     db.session.commit()  # single commit for the whole batch
 
-    from agenticAI.assignment_agent import run_assignment_for_batch
-    run_assignment_for_batch(record.id)
-
     return record, None, metrics
 
 
@@ -428,6 +426,92 @@ def get_analyses_for_assignment(admin_user_id):
         })
     return result
 
+def get_analyses_for_manager_assignment(manager_id):
+    """
+    Analyses that have been assigned to this manager (by an admin), with
+    current per-analyst assignment status - used by the manager's
+    'assign to analyst' page.
+    """
+    analysis_ids = _get_assigned_analysis_ids(manager_id, 'manager')
+    if not analysis_ids:
+        return []
+
+    analyses = AnalysisResult.query.filter(AnalysisResult.id.in_(analysis_ids))\
+        .order_by(AnalysisResult.analysed_at.desc()).all()
+
+    result = []
+    for a in analyses:
+        file = UploadedFile.query.get(a.file_id)
+        assignments = AnalysisAssignment.query.filter_by(analysis_id=a.id).all()
+
+        assigned_to = [
+            {'id': assign.analyst.id, 'username': assign.analyst.username, 'analyst_id': assign.analyst_id}
+            for assign in assignments
+            if assign.analyst_id is not None
+        ]
+
+        result.append({
+            'id':           a.id,
+            'filename':     file.filename if file else 'Unknown',
+            'analysed_at':  a.analysed_at.strftime('%Y-%m-%d %H:%M'),
+            'total_rows':   a.total_rows,
+            'high_count':   a.high_count,
+            'medium_count': a.medium_count,
+            'assigned_to':  assigned_to,
+            'is_assigned':  len(assigned_to) > 0,
+        })
+    return result
+
+
+def assign_to_analyst(analysis_id, analyst_id, assigned_by):
+    """
+    Manager assigns an analysis to an analyst.
+    Adds a new AnalysisAssignment row for this analyst if one doesn't already exist.
+    """
+    existing_ids = {
+        a.analyst_id for a in
+        AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
+        if a.analyst_id is not None
+    }
+    if analyst_id not in existing_ids:
+        db.session.add(AnalysisAssignment(
+            analysis_id=analysis_id,
+            analyst_id=analyst_id,
+            assigned_by=assigned_by,
+        ))
+    db.session.commit()
+
+
+def remove_assignment_analyst(analysis_id, analyst_id):
+    entry = AnalysisAssignment.query.filter_by(
+        analysis_id=analysis_id, analyst_id=analyst_id
+    ).first()
+    if entry:
+        db.session.delete(entry)
+        db.session.commit()
+
+
+def trigger_auto_assignment(analysis_id, manager_id):
+    """
+    Manager-triggered AI auto-assignment for one specific analysis.
+    Only runs if this analysis is actually assigned to this manager -
+    prevents a manager from triggering assignment on analyses they
+    don't own just by guessing an analysis_id.
+
+    Returns the same dict shape as run_assignment_for_batch(), or an
+    {"error": ...} dict if the permission check fails.
+    """
+    owned_ids = _get_assigned_analysis_ids(manager_id, 'manager')
+    if analysis_id not in owned_ids:
+        return {"error": "This analysis is not assigned to you."}
+
+    # imported here (not at top of file) to avoid a circular import - this
+    # module is part of the backend package, and assignment_agent needs
+    # models from that same package
+    from agenticAI.assignment_agent import run_assignment_for_batch  # pylint: disable=import-outside-toplevel
+    return run_assignment_for_batch(analysis_id)
+
+
 def get_all_analysts():
     """All SOC Analyst accounts for the assignment n."""
     analysts = User.query.filter_by(role='analyst').all()
@@ -443,19 +527,31 @@ def assign_to_manager(analysis_id, manager_id, assigned_by):
     """
     Admin assigns an analysis to a manager.
     Adds a new AnalysisAssignment row for this manager if one doesn't already exist.
+    
+    Automatically triggers the AI ticket-assignment agent right after -
+    this is the point the analysis first becomes "owned" by a manager,
+    so tickets get distributed to analysts immediately, no manual click needed.
     """
     existing_ids = {
         a.manager_id for a in
         AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
         if a.manager_id is not None
     }
-    if manager_id not in existing_ids:
+    is_new_assignment = manager_id not in existing_ids
+    if is_new_assignment:
         db.session.add(AnalysisAssignment(
             analysis_id=analysis_id,
             manager_id=manager_id,
             assigned_by=assigned_by,
         ))
     db.session.commit()
+
+    if is_new_assignment:
+        # imported here (not at top of file) to avoid a circular import - this
+        # module is part of the backend package, and assignment_agent needs
+        # models from that same package
+        from agenticAI.assignment_agent import run_assignment_for_batch  # pylint: disable=import-outside-toplevel
+        run_assignment_for_batch(analysis_id)
 
 def remove_assignment_manager(analysis_id, manager_id):
     entry = AnalysisAssignment.query.filter_by(

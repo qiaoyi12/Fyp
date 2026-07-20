@@ -13,7 +13,7 @@
 <div class="msg-error">✕ {{ error }}</div>
 {% endif %}
 
-<form method="GET" action="/assign-analyst">
+<form method="POST" action="/assign-analyst">
 
   <!-- STEP 1: PICK AN ANALYSIS RUN -->
   <div class="sec-title">Step 1 — Select Analysis Run</div>
@@ -56,8 +56,19 @@
         {% endfor %}
       </div>
       {% else %}
-      <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace">
-        Unassigned
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="font-size:9px;color:#2A4A6A;font-family:'JetBrains Mono',monospace">
+          Unassigned
+        </div>
+        <button type="button" onclick="autoAssign({{ a.id }})" style="font-size:9px;font-family:'JetBrains Mono',monospace;
+           background:rgba(29,185,84,0.08);
+           border:1px solid #123A22;
+           color:#1DB954;
+           border-radius:4px;
+           padding:2px 8px;
+           cursor:pointer;">
+          Auto-Assign via AI
+        </button>
       </div>
       {% endif %}
 
@@ -109,6 +120,10 @@
   <input type="hidden" id="remove-analyst-id" name="analyst_id">
 </form>
 
+<form id="auto-assign-form" method="POST" action="/assign-analyst/auto" style="display:none;">
+  <input type="hidden" id="auto-assign-analysis-id" name="analysis_id">
+</form>
+
 {% endblock %}
 
 {% block scripts %}
@@ -133,6 +148,14 @@
     document.getElementById("remove-analysis-id").value = analysisId;
     document.getElementById("remove-analyst-id").value = analystId;
     document.getElementById("remove-form").submit();
+  }
+
+  function autoAssign(analysisId) {
+    if (!confirm("Let the AI agent auto-assign this analysis's tickets to analysts?")) {
+        return;
+    }
+    document.getElementById("auto-assign-analysis-id").value = analysisId;
+    document.getElementById("auto-assign-form").submit();
   }
 </script>
 {% endblock %}

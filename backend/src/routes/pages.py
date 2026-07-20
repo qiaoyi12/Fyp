@@ -330,10 +330,56 @@ def unassign_manager():
 @pages_bp.route('/assign-analyst', methods=['GET'])
 @login_required
 def assign_analyst():
+    analyses = data_service.get_analyses_for_manager_assignment(session['user_id'])
+    analysts = data_service.get_all_analysts()
+    message = request.args.get('message')
+    error = request.args.get('error')
     return render_template('assignAnalyst.html',
-        analyses=[], analysts=[],
-        message=None, error=None,
+        analyses=analyses, analysts=analysts,
+        message=message, error=error,
         active_page='assign_analyst', user=session['user'], role=session['role'])
+
+
+@pages_bp.route('/assign-analyst', methods=['POST'])
+@login_required
+def assign_analyst_submit():
+    analysis_id = request.form.get('analysis_id')
+    analyst_ids = request.form.getlist('analyst_ids')
+    if not analysis_id or not analyst_ids:
+        return redirect(url_for('pages.assign_analyst', error='Please select an analysis and at least one analyst.'))
+    for analyst_id in analyst_ids:
+        data_service.assign_to_analyst(
+            analysis_id=int(analysis_id),
+            analyst_id=int(analyst_id),
+            assigned_by=session['user_id']
+        )
+    return redirect(url_for('pages.assign_analyst', message='Analysis successfully assigned to analyst(s).'))
+
+
+@pages_bp.route('/assign-analyst/remove', methods=['POST'])
+@login_required
+def unassign_analyst():
+    analysis_id = request.form.get('analysis_id')
+    analyst_id = request.form.get('analyst_id')
+    if analysis_id and analyst_id:
+        data_service.remove_assignment_analyst(int(analysis_id), int(analyst_id))
+    return redirect(url_for('pages.assign_analyst'))
+
+
+@pages_bp.route('/assign-analyst/auto', methods=['POST'])
+@login_required
+def auto_assign_analyst():
+    analysis_id = request.form.get('analysis_id')
+    if not analysis_id:
+        return redirect(url_for('pages.assign_analyst', error='Please select an analysis first.'))
+
+    result = data_service.trigger_auto_assignment(int(analysis_id), session['user_id'])
+
+    if 'error' in result:
+        return redirect(url_for('pages.assign_analyst', error=result['error']))
+
+    return redirect(url_for('pages.assign_analyst', message=result['agent_summary']))
+
 
 # top attacking IPs section for admin to view the top attacking IPs
 @pages_bp.route('/attackingIPS')

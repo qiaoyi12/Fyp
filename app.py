@@ -58,5 +58,33 @@ with app.app_context():
             with db.engine.begin() as connection:
                 connection.execute(text("ALTER TABLE analysis_assignments ADD COLUMN manager_id INTEGER"))
                 
+        # separate check: analyst_id may still be NOT NULL from an older schema
+        # version, even after the manager_id column was added above. SQLite can't
+        # alter a column's constraint directly, so the whole table must be rebuilt.
+        assignment_columns_info = inspector.get_columns('analysis_assignments')
+        analyst_id_col = next((c for c in assignment_columns_info if c['name'] == 'analyst_id'), None)
+        if analyst_id_col is not None and not analyst_id_col['nullable']:
+            with db.engine.begin() as connection:
+                connection.execute(text("""
+                    CREATE TABLE analysis_assignments_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        analysis_id INTEGER NOT NULL REFERENCES analysis_results(id),
+                        analyst_id INTEGER REFERENCES users(id),
+                        manager_id INTEGER REFERENCES users(id),
+                        assigned_by INTEGER NOT NULL REFERENCES users(id),
+                        assigned_at DATETIME
+                    )
+                """))
+                connection.execute(text("""
+                    INSERT INTO analysis_assignments_new
+                        (id, analysis_id, analyst_id, manager_id, assigned_by, assigned_at)
+                    SELECT id, analysis_id, analyst_id, manager_id, assigned_by, assigned_at
+                    FROM analysis_assignments
+                """))
+                connection.execute(text("DROP TABLE analysis_assignments"))
+                connection.execute(text(
+                    "ALTER TABLE analysis_assignments_new RENAME TO analysis_assignments"
+                ))
+
 if __name__ == '__main__':
     app.run(debug=True)
