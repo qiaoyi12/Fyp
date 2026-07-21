@@ -664,7 +664,7 @@ def get_attack_overview(user_id, role, days=7):
                 if SEVERITY_RANK.get(entry['max_severity'], 0) > SEVERITY_RANK.get(ip_totals[ip]['max_severity'], 0):
                     ip_totals[ip]['max_severity'] = entry['max_severity']
 
-    day_labels = [(since + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days + 1)]
+    day_labels = [(since + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(1, days + 1)]
 
     volume_trend = [{'date': d, 'count': volume_by_day.get(d, 0)} for d in day_labels]
     severity_trend = [{'date': d, **severity_by_day.get(d, {'high': 0, 'medium': 0, 'normal': 0})} for d in day_labels]
