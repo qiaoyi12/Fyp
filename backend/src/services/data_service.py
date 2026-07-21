@@ -24,13 +24,23 @@ def _get_assigned_analysis_ids(user_id, role):
 
 
 def has_no_assignments(user_id, role):
-    if role not in ('analyst', 'manager'):
-        return False
-    return len(_get_assigned_analysis_ids(user_id, role)) == 0
+    if role == 'analyst':
+        has_analysis_level = len(_get_assigned_analysis_ids(user_id, role)) > 0
+        has_ticket_level = Alert.query.filter_by(assigned_analyst_id=user_id).first() is not None
+        return not (has_analysis_level or has_ticket_level)
+    if role == 'manager':
+        return len(_get_assigned_analysis_ids(user_id, role)) == 0
+    return False
 
 
 def _alert_query(user_id, role):
-    if role in ('analyst', 'manager'):
+    if role == 'analyst':
+        analysis_ids = _get_assigned_analysis_ids(user_id, role)
+        conditions = [Alert.assigned_analyst_id == user_id]
+        if analysis_ids:
+            conditions.append(Alert.analysis_id.in_(analysis_ids))
+        return Alert.query.filter(or_(*conditions))
+    if role == 'manager':
         analysis_ids = _get_assigned_analysis_ids(user_id, role)
         if not analysis_ids:
             return Alert.query.filter_by(id=None)
