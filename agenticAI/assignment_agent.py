@@ -23,12 +23,15 @@ INSTRUCTIONS = """
 You are a SOC (Security Operations Center) ticket assignment explainer.
 
 You will be given a JSON list called ASSIGNMENTS. Each item has:
-ticket_id, staff_id, staff_name, attack_type, severity.
+ticket_id, staff_id, staff_name, staff_level, attack_type, severity.
 
 For EVERY item, write a short (1 sentence) human-readable reason explaining
-the assignment. Since specialization matching is not yet implemented, base
-each reason on the fact this is standard round-robin workload distribution
-for this upload batch, and mention the attack_type and severity.
+the assignment. The routing was decided by fixed rules, not by you:
+high-severity tickets are routed to senior analysts first (overflowing to
+junior analysts only once every senior is at capacity), and all other
+tickets fill whatever capacity is left regardless of level. Base each
+reason on that rule, referencing the ticket's attack_type, severity, and
+the assigned analyst's staff_level.
 
 Respond with ONLY a JSON array, nothing else - no markdown, no preamble.
 Each element must be: {"ticket_id": <int>, "reason": "<your explanation>"}
@@ -52,8 +55,8 @@ def _get_reasons(assignments: list) -> dict:
     """
     fallback = {
         a["ticket_id"]: (
-            f"Standard round-robin workload distribution for this batch; "
-            f"{a.get('attack_type')}, {a.get('severity')} severity."
+            f"Routed to {a.get('staff_name')} ({a.get('staff_level', 'junior')} analyst) "
+            f"based on {a.get('severity')} severity {a.get('attack_type')} activity."
         )
         for a in assignments
     }
@@ -126,7 +129,7 @@ def run_assignment_for_batch(analysis_id: int) -> dict:
         outcome = assign_ticket(
             ticket_id=a["ticket_id"],
             staff_id=a["staff_id"],
-            reason=reasons.get(a["ticket_id"], "Standard round-robin workload distribution for this batch."),
+            reason=reasons.get(a["ticket_id"], f"Assigned to {a.get('staff_name')} ({a.get('staff_level', 'junior')} analyst)."),
         )
         if outcome["success"]:
             assigned_count += 1

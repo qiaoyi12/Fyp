@@ -525,12 +525,28 @@ def trigger_auto_assignment(analysis_id, manager_id):
 def get_all_analysts():
     """All SOC Analyst accounts for the assignment n."""
     analysts = User.query.filter_by(role='analyst').all()
-    return [{'id': u.id, 'username': u.username} for u in analysts]
+    return [{'id': u.id, 'username': u.username, 'level': u.level} for u in analysts]
 
 def get_all_managers():
     """All it manager accounts for the assignment ."""
     managers = User.query.filter_by(role='manager').all()
     return [{'id': u.id, 'username': u.username} for u in managers]
+
+
+def update_analyst_level(analyst_id, level):
+    """
+    Admin sets an analyst's seniority tier ('junior' or 'senior'), used by
+    the AI assignment agent to route higher-severity tickets to senior
+    analysts. Returns True if updated, False if the account isn't an analyst.
+    """
+    if level not in ('junior', 'senior'):
+        return False
+    analyst = User.query.filter_by(id=analyst_id, role='analyst').first()
+    if not analyst:
+        return False
+    analyst.level = level
+    db.session.commit()
+    return True
 
 
 def assign_to_manager(analysis_id, manager_id, assigned_by):
