@@ -17,6 +17,12 @@ class User(db.Model):
 
     # roles (to identify whether it is SOC Analyst or It Administrator)
     role       = db.Column(db.String(30), nullable=False, default='SOC Analyst')
+
+    # analyst seniority tier ('junior' or 'senior'), used to route
+    # higher-severity tickets to more senior analysts. Only meaningful
+    # for role='analyst', but kept on the base table since there's no
+    # per-role subclassing here.
+    level      = db.Column(db.String(20), nullable=False, default='junior')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # for users to upload more than 1 file
@@ -34,6 +40,7 @@ class User(db.Model):
             'username': self.username,
             'email': self.email,
             'role': self.role,
+            'level': self.level,
             'created_at': self.created_at.isoformat()
         }
     

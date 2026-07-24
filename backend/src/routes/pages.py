@@ -321,6 +321,33 @@ def unassign_manager():
         data_service.remove_assignment_manager(int(analysis_id), int(manager_id))
     return redirect(url_for('pages.assign_manager'))
 
+# admin screen to set each analyst's seniority level (junior/senior),
+# used by the AI assignment agent to route high-severity tickets to seniors
+@pages_bp.route('/manage-analysts', methods=['GET'])
+@admin_required
+def manage_analysts():
+    analysts = data_service.get_all_analysts()
+    message = request.args.get('message')
+    error = request.args.get('error')
+    return render_template('manageAnalysts.html',
+        analysts=analysts,
+        message=message, error=error,
+        active_page='manage_analysts', user=session['user'], role=session['role'])
+
+
+@pages_bp.route('/manage-analysts/level', methods=['POST'])
+@admin_required
+def manage_analysts_set_level():
+    analyst_id = request.form.get('analyst_id')
+    level = request.form.get('level')
+    if not analyst_id or level not in ('junior', 'senior'):
+        return redirect(url_for('pages.manage_analysts', error='Please select a valid analyst and level.'))
+    updated = data_service.update_analyst_level(int(analyst_id), level)
+    if not updated:
+        return redirect(url_for('pages.manage_analysts', error='Could not update that analyst.'))
+    return redirect(url_for('pages.manage_analysts', message='Analyst level updated.'))
+
+
 # to be change for the manageer to assign to the analysts.
 # @pages_bp.route('/assign', methods=['GET'])
 # @admin_required

@@ -24,13 +24,23 @@ def _get_assigned_analysis_ids(user_id, role):
 
 
 def has_no_assignments(user_id, role):
-    if role not in ('analyst', 'manager'):
-        return False
-    return len(_get_assigned_analysis_ids(user_id, role)) == 0
+    if role == 'analyst':
+        has_analysis_level = len(_get_assigned_analysis_ids(user_id, role)) > 0
+        has_ticket_level = Alert.query.filter_by(assigned_analyst_id=user_id).first() is not None
+        return not (has_analysis_level or has_ticket_level)
+    if role == 'manager':
+        return len(_get_assigned_analysis_ids(user_id, role)) == 0
+    return False
 
 
 def _alert_query(user_id, role):
-    if role in ('analyst', 'manager'):
+    if role == 'analyst':
+        analysis_ids = _get_assigned_analysis_ids(user_id, role)
+        conditions = [Alert.assigned_analyst_id == user_id]
+        if analysis_ids:
+            conditions.append(Alert.analysis_id.in_(analysis_ids))
+        return Alert.query.filter(or_(*conditions))
+    if role == 'manager':
         analysis_ids = _get_assigned_analysis_ids(user_id, role)
         if not analysis_ids:
             return Alert.query.filter_by(id=None)
@@ -578,12 +588,28 @@ def get_analyses_for_assignment(admin_user_id):
 def get_all_analysts():
     """All SOC Analyst accounts for the assignment n."""
     analysts = User.query.filter_by(role='analyst').all()
-    return [{'id': u.id, 'username': u.username} for u in analysts]
+    return [{'id': u.id, 'username': u.username, 'level': u.level} for u in analysts]
 
 def get_all_managers():
     """All it manager accounts for the assignment ."""
     managers = User.query.filter_by(role='manager').all()
     return [{'id': u.id, 'username': u.username} for u in managers]
+
+
+def update_analyst_level(analyst_id, level):
+    """
+    Admin sets an analyst's seniority tier ('junior' or 'senior'), used by
+    the AI assignment agent to route higher-severity tickets to senior
+    analysts. Returns True if updated, False if the account isn't an analyst.
+    """
+    if level not in ('junior', 'senior'):
+        return False
+    analyst = User.query.filter_by(id=analyst_id, role='analyst').first()
+    if not analyst:
+        return False
+    analyst.level = level
+    db.session.commit()
+    return True
 
 
 def assign_to_manager(analysis_id, manager_id, assigned_by):
@@ -689,7 +715,7 @@ def get_attack_overview(user_id, role, days=7):
                 if SEVERITY_RANK.get(entry['max_severity'], 0) > SEVERITY_RANK.get(ip_totals[ip]['max_severity'], 0):
                     ip_totals[ip]['max_severity'] = entry['max_severity']
 
-    day_labels = [(since + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days + 1)]
+    day_labels = [(since + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(1, days + 1)]
 
     volume_trend = [{'date': d, 'count': volume_by_day.get(d, 0)} for d in day_labels]
     severity_trend = [{'date': d, **severity_by_day.get(d, {'high': 0, 'medium': 0, 'normal': 0})} for d in day_labels]
