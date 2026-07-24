@@ -1,9 +1,9 @@
 # Handles uploaded data, analysis, alerts, logs, and report summary.
 import json
 import time
-import pandas as pd
 from datetime import timedelta, datetime
-from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User, TrafficLog
+from sqlalchemy import or_
+from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User
 from backend.src.database.db import db
 from backend.src.ml.preprocess import preprocess_csv
 from backend.src.ml.predict import predict, get_summary, estimate_model_metrics
@@ -136,39 +136,6 @@ def _resolve_uploads(file_ids, user_id):
         return None
 
     return uploads
-
-# to make sure that the traffic is shown specifically to the assigned analyst or manager.
-def _traffic_log_query(user_id, role):
-    if role in ('analyst', 'manager'):
-        analysis_ids = _get_assigned_analysis_ids(user_id, role)
-        if not analysis_ids:
-            return TrafficLog.query.filter_by(id=None)
-        return TrafficLog.query.filter(TrafficLog.analysis_id.in_(analysis_ids))
-    return TrafficLog.query.filter_by(user_id=user_id)
-
-# for all traffic logs
-def _bulk_insert_traffic_logs(record, combined_results, frame_lookup, user_id):
-    """Persist a lightweight record of every processed row (not just the capped alert subset)."""
-    traffic_log_rows = []
-    for r in combined_results:
-        X_frame, raw_frame = frame_lookup[r['source_upload_id']]
-        raw_row = raw_frame.iloc[r['source_row']]
-
-        traffic_log_rows.append({
-            'analysis_id': record.id,
-            'user_id': user_id,
-            'row_index': r['row'],
-            'source_ip': str(raw_row.get('Src IP', 'Unknown')),
-            'dest_ip': str(raw_row.get('Dst IP', 'Unknown')),
-            'dest_port': int(X_frame.iloc[r['source_row']]['Dst Port']),
-            'prediction': r['prediction'],
-            'severity': 'normal' if r['prediction'] == 'BENIGN' else r['severity'],
-            'confidence': r['confidence'],
-        })
-
-    db.session.bulk_insert_mappings(TrafficLog, traffic_log_rows)
-    db.session.commit()
-
 
 def run_analysis(file_ids, user_id):
     uploads = _resolve_uploads(file_ids, user_id)
@@ -303,6 +270,127 @@ def run_analysis(file_ids, user_id):
 
     return record, None, metrics
 
+    uploads = _resolve_uploads(file_ids, user_id)
+    if not uploads:
+        return None, 'File not found.', None
+
+    start_time = time.time()
+
+    processed_files = []
+    combined_results = []
+    global_row = 0
+
+    for upload in uploads:
+        X, error = preprocess_csv(upload.filepath)
+        if error:
+            return None, error, None
+
+        results = predict(X)
+        for result in results:
+            enriched = dict(result)
+            enriched['source_upload_id'] = upload.id
+            enriched['source_row'] = int(result['row'])
+            enriched['row'] = global_row
+            combined_results.append(enriched)
+            global_row += 1
+
+        processed_files.append((upload, X))
+
+    metrics = _estimate_model_metrics(combined_results)
+    elapsed_seconds = round(time.time() - start_time, 2)
+    metrics['response_time_seconds'] = elapsed_seconds
+    summary = get_summary(combined_results)
+    by_label, by_sev = summary['by_label'], summary['by_severity']
+
+    record = AnalysisResult(
+        file_id=uploads[0].id, user_id=user_id, total_rows=len(combined_results),
+        benign=by_label['BENIGN'], web_attack=by_label['Web Attack'],
+        dos=by_label['DoS'], ddos=by_label['DDoS'], portscan=by_label['PortScan'],
+        bot=by_label['Bot/Patator'], rare=by_label['Rare/Others'],
+        high_count=by_sev['high'], medium_count=by_sev['medium'], normal_count=by_sev['normal'],
+        file_ids=json.dumps([u.id for u in uploads]),
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    # Group ALL predictions by type, including BENIGN
+    by_type = {}
+    for r in combined_results:
+        if r['prediction'] not in by_type:
+            by_type[r['prediction']] = []
+        by_type[r['prediction']].append(r)
+
+    # IP stats — across all rows (now includes BENIGN too)
+    ip_counts = {}
+    for r in [row for rows in by_type.values() for row in rows]:
+        row_idx = r['row']
+        source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
+        if source_ip not in ip_counts:
+            ip_counts[source_ip] = {'ip': source_ip, 'count': 0, 'types': {}, 'max_severity': 'normal'}
+        entry = ip_counts[source_ip]
+        entry['count'] += 1
+        entry['types'][r['prediction']] = entry['types'].get(r['prediction'], 0) + 1
+        if SEVERITY_RANK.get(r['severity'], 0) > SEVERITY_RANK.get(entry['max_severity'], 0):
+            entry['max_severity'] = r['severity']
+
+    record.ip_stats = json.dumps(list(ip_counts.values()))
+    db.session.commit()
+
+    TICKETS_PER_TYPE_MAX = 80  # cap per type, including BENIGN
+
+    selected = []
+    for label, rows in by_type.items():
+        # ascending confidence — least confident (most uncertain) predictions first,
+        # since those need analyst review most
+        selected.extend(sorted(rows, key=lambda x: x['confidence'])[:TICKETS_PER_TYPE_MAX])
+
+    frame_lookup = {upload.id: X for upload, X in processed_files}
+    for r in selected:
+        row_data = frame_lookup[r['source_upload_id']].iloc[r['source_row']]
+        row_idx = r['row']
+        source_ip = f'10.0.{(row_idx // 254) % 255}.{(row_idx % 254) + 1}'
+
+        severity = 'normal' if r['prediction'] == 'BENIGN' else r['severity']
+
+        alert = Alert(
+            analysis_id=record.id,
+            user_id=user_id,
+            row_index=row_idx,
+            prediction=r['prediction'],
+            severity=severity,
+            confidence=r['confidence'],
+            xgb_vote=r['xgb_vote'],
+            rf_vote=r['rf_vote'],
+            dest_port=int(row_data['Destination Port']),
+            flow_duration=round(float(row_data['Flow Duration']), 2),
+            flow_pkts_s=round(float(row_data['Flow Packets/s']), 2),
+            source_ip=source_ip,
+        )
+        db.session.add(alert)
+        db.session.flush()  # generates alert.id
+
+        detail = AlertDetail(
+            alert_id=alert.id,
+            flow_duration=round(float(row_data['Flow Duration']), 2),
+            flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
+            flow_packets_s=round(float(row_data['Flow Packets/s']), 2),
+            total_fwd_packets=int(row_data['Total Fwd Packets']),
+            total_backward_packets=int(row_data['Total Backward Packets']),
+            packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
+            average_packet_size=round(float(row_data['Average Packet Size']), 2),
+            syn_flag_count=int(row_data['SYN Flag Count']),
+            ack_flag_count=int(row_data['ACK Flag Count']),
+            psh_flag_count=int(row_data['PSH Flag Count']),
+            init_win_bytes_forward=int(row_data['Init_Win_bytes_forward']),
+            init_win_bytes_backward=int(row_data['Init_Win_bytes_backward']),
+        )
+        db.session.add(detail)
+
+    db.session.commit()  # single commit for the whole batch
+
+    return record, None, metrics
+
+
 # ── ALERTS ────────────────────────────────────────────────────
 def get_alert_feed(user_id, role, severity, attack_type, sort='confidence_desc'):
     query = _alert_query(user_id, role)
@@ -410,61 +498,7 @@ def get_logs(user_id, role, filter_type, search='', page=1, per_page=80):
 
         return logs, total
 
-# to create alert if needed 
-def create_alert_from_traffic_log(traffic_log):
-    """Escalate a TrafficLog row into a full Alert with detail, computed on demand."""
-    existing = Alert.query.filter_by(
-        analysis_id=traffic_log.analysis_id,
-        row_index=traffic_log.row_index
-    ).first()
-    if existing:
-        return existing
 
-    analysis = AnalysisResult.query.get(traffic_log.analysis_id)
-    upload = UploadedFile.query.get(analysis.file_id)
-
-    X, error = preprocess_csv(upload.filepath)
-    raw_df = pd.read_csv(upload.filepath)
-    raw_df.columns = raw_df.columns.str.strip()
-
-    row_data = X.iloc[traffic_log.row_index]
-    raw_row = raw_df.iloc[traffic_log.row_index]
-
-    result = predict(X.iloc[[traffic_log.row_index]])[0]
-
-    alert = Alert(
-        analysis_id=traffic_log.analysis_id,
-        user_id=traffic_log.user_id,
-        row_index=traffic_log.row_index,
-        prediction=result['prediction'],
-        severity=result['severity'],
-        confidence=result['confidence'],
-        xgb_vote=result['xgb_vote'],
-        rf_vote=result['rf_vote'],
-        dest_port=int(row_data['Dst Port']),
-        dest_ip=str(raw_row.get('Dst IP', 'Unknown')),
-        source_ip=str(raw_row.get('Src IP', 'Unknown')),
-    )
-    db.session.add(alert)
-    db.session.flush()
-
-    detail = AlertDetail(
-        alert_id=alert.id,
-        flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
-        total_backward_packets=int(row_data['Total Bwd packets']),
-        packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
-        average_packet_size=round(float(row_data['Average Packet Size']), 2),
-        ack_flag_count=int(row_data['ACK Flag Count']),
-        psh_flag_count=int(row_data['PSH Flag Count']),
-        init_win_bytes_forward=int(row_data['FWD Init Win Bytes']),
-        init_win_bytes_backward=int(row_data['Bwd Init Win Bytes']),
-        packet_length_max=round(float(row_data['Packet Length Max']), 2),
-        packet_length_std=round(float(row_data['Packet Length Std']), 2),
-        bwd_iat_max=round(float(row_data['Bwd IAT Max']), 2),
-    )
-    db.session.add(detail)
-    db.session.commit()
-    return alert
 
 # ── UPLOAD HISTORY ────────────────────────────────────────────
 def get_upload_history(user_id, limit=10):
@@ -585,6 +619,92 @@ def get_analyses_for_assignment(admin_user_id):
         })
     return result
 
+def get_analyses_for_manager_assignment(manager_id):
+    """
+    Analyses that have been assigned to this manager (by an admin), with
+    current per-analyst assignment status - used by the manager's
+    'assign to analyst' page.
+    """
+    analysis_ids = _get_assigned_analysis_ids(manager_id, 'manager')
+    if not analysis_ids:
+        return []
+
+    analyses = AnalysisResult.query.filter(AnalysisResult.id.in_(analysis_ids))\
+        .order_by(AnalysisResult.analysed_at.desc()).all()
+
+    result = []
+    for a in analyses:
+        file = UploadedFile.query.get(a.file_id)
+        assignments = AnalysisAssignment.query.filter_by(analysis_id=a.id).all()
+
+        assigned_to = [
+            {'id': assign.analyst.id, 'username': assign.analyst.username, 'analyst_id': assign.analyst_id}
+            for assign in assignments
+            if assign.analyst_id is not None
+        ]
+
+        result.append({
+            'id':           a.id,
+            'filename':     file.filename if file else 'Unknown',
+            'analysed_at':  a.analysed_at.strftime('%Y-%m-%d %H:%M'),
+            'total_rows':   a.total_rows,
+            'high_count':   a.high_count,
+            'medium_count': a.medium_count,
+            'assigned_to':  assigned_to,
+            'is_assigned':  len(assigned_to) > 0,
+        })
+    return result
+
+
+def assign_to_analyst(analysis_id, analyst_id, assigned_by):
+    """
+    Manager assigns an analysis to an analyst.
+    Adds a new AnalysisAssignment row for this analyst if one doesn't already exist.
+    """
+    existing_ids = {
+        a.analyst_id for a in
+        AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
+        if a.analyst_id is not None
+    }
+    if analyst_id not in existing_ids:
+        db.session.add(AnalysisAssignment(
+            analysis_id=analysis_id,
+            analyst_id=analyst_id,
+            assigned_by=assigned_by,
+        ))
+    db.session.commit()
+
+
+def remove_assignment_analyst(analysis_id, analyst_id):
+    entry = AnalysisAssignment.query.filter_by(
+        analysis_id=analysis_id, analyst_id=analyst_id
+    ).first()
+    if entry:
+        db.session.delete(entry)
+        db.session.commit()
+
+
+def trigger_auto_assignment(analysis_id, manager_id):
+    """
+    Manager-triggered AI auto-assignment for one specific analysis.
+    Only runs if this analysis is actually assigned to this manager -
+    prevents a manager from triggering assignment on analyses they
+    don't own just by guessing an analysis_id.
+
+    Returns the same dict shape as run_assignment_for_batch(), or an
+    {"error": ...} dict if the permission check fails.
+    """
+    owned_ids = _get_assigned_analysis_ids(manager_id, 'manager')
+    if analysis_id not in owned_ids:
+        return {"error": "This analysis is not assigned to you."}
+
+    # imported here (not at top of file) to avoid a circular import - this
+    # module is part of the backend package, and assignment_agent needs
+    # models from that same package
+    from agenticAI.assignment_agent import run_assignment_for_batch  # pylint: disable=import-outside-toplevel
+    return run_assignment_for_batch(analysis_id)
+
+
 def get_all_analysts():
     """All SOC Analyst accounts for the assignment n."""
     analysts = User.query.filter_by(role='analyst').all()
@@ -616,19 +736,31 @@ def assign_to_manager(analysis_id, manager_id, assigned_by):
     """
     Admin assigns an analysis to a manager.
     Adds a new AnalysisAssignment row for this manager if one doesn't already exist.
+    
+    Automatically triggers the AI ticket-assignment agent right after -
+    this is the point the analysis first becomes "owned" by a manager,
+    so tickets get distributed to analysts immediately, no manual click needed.
     """
     existing_ids = {
         a.manager_id for a in
         AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
         if a.manager_id is not None
     }
-    if manager_id not in existing_ids:
+    is_new_assignment = manager_id not in existing_ids
+    if is_new_assignment:
         db.session.add(AnalysisAssignment(
             analysis_id=analysis_id,
             manager_id=manager_id,
             assigned_by=assigned_by,
         ))
     db.session.commit()
+
+    if is_new_assignment:
+        # imported here (not at top of file) to avoid a circular import - this
+        # module is part of the backend package, and assignment_agent needs
+        # models from that same package
+        from agenticAI.assignment_agent import run_assignment_for_batch  # pylint: disable=import-outside-toplevel
+        run_assignment_for_batch(analysis_id)
 
 def remove_assignment_manager(analysis_id, manager_id):
     entry = AnalysisAssignment.query.filter_by(
