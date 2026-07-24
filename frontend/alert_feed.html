@@ -7,42 +7,138 @@
 {% block content %}
 
 <!-- FILTER BAR -->
+<!-- FILTER BAR -->
 <div class="filter-bar">
-  <input
-    class="search-input"
-    type="text"
-    id="search-input"
-    placeholder="Search alerts by attack type..."
-    onkeyup="filterAlerts()"
-  />
 
-  <a href="/alerts?severity=high&type={{ attack_type }}&sort={{ sort }}" class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
-  <a href="/alerts?severity=medium&type={{ attack_type }}&sort={{ sort }}" class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
-  <a href="/alerts?severity=normal&type={{ attack_type }}&sort={{ sort }}" class="f-btn normal {% if severity == 'normal' %}active{% endif %}">Normal</a>
+  <!-- LEFT SIDE: SEVERITY FILTERS -->
+  <div class="filter-left">
 
-  <select class="f-btn" id="type-filter" onchange="applyFilters()">
-    <option value="all" {% if attack_type == 'all' %}selected{% endif %}>All Types</option>
-    <option value="Web Attack" {% if attack_type == 'Web Attack' %}selected{% endif %}>Web Attack</option>
-    <option value="Bot/Patator" {% if attack_type == 'Bot/Patator' %}selected{% endif %}>Bot/Patator</option>
-    <option value="DDoS" {% if attack_type == 'DDoS' %}selected{% endif %}>DDoS</option>
-    <option value="DoS" {% if attack_type == 'DoS' %}selected{% endif %}>DoS</option>
-    <option value="Rare/Others" {% if attack_type == 'Rare/Others' %}selected{% endif %}>Rare/Others</option>
-    <option value="PortScan" {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
-    <option value="BENIGN" {% if attack_type == 'BENIGN' %}selected{% endif %}>Benign</option>
-  </select>
+    <a
+      href="/alerts?severity=high&type={{ attack_type }}&sort={{ sort }}"
+      class="f-btn high {% if severity == 'high' %}active{% endif %}">
+      High
+    </a>
 
-  <select class="f-btn" id="sort-filter" onchange="applyFilters()">
-    <option value="confidence_desc" {% if sort == 'confidence_desc' or not sort %}selected{% endif %}>Highest Confidence</option>
-    <option value="confidence_asc" {% if sort == 'confidence_asc' %}selected{% endif %}>Lowest Confidence</option>
-    <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Most Recent</option>
-    <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Oldest First</option>
-  </select>
+    <a
+      href="/alerts?severity=medium&type={{ attack_type }}&sort={{ sort }}"
+      class="f-btn medium {% if severity == 'medium' %}active{% endif %}">
+      Medium
+    </a>
 
-  {% if severity != 'all' or attack_type != 'all' %}
-    <a href="/alerts" class="f-btn clear-filter">✕ Clear Filter</a>
-  {% endif %}
+    <a
+      href="/alerts?severity=normal&type={{ attack_type }}&sort={{ sort }}"
+      class="f-btn normal {% if severity == 'normal' %}active{% endif %}">
+      Normal
+    </a>
+
+  </div>
+
+
+  <!-- RIGHT SIDE: TYPE, SORT, CONFIDENCE -->
+  <div class="filter-right">
+
+    <!-- ATTACK TYPE -->
+    <select
+      class="f-btn"
+      id="type-filter"
+      onchange="applyFilters()">
+
+      <option
+        value="all"
+        {% if attack_type == 'all' %}selected{% endif %}>
+        All Types
+      </option>
+
+      <option
+        value="Web Attack"
+        {% if attack_type == 'Web Attack' %}selected{% endif %}>
+        Web Attack
+      </option>
+
+      <option
+        value="Bot/Patator"
+        {% if attack_type == 'Bot/Patator' %}selected{% endif %}>
+        Bot/Patator
+      </option>
+
+      <option
+        value="DDoS"
+        {% if attack_type == 'DDoS' %}selected{% endif %}>
+        DDoS
+      </option>
+
+      <option
+        value="DoS"
+        {% if attack_type == 'DoS' %}selected{% endif %}>
+        DoS
+      </option>
+
+      <option
+        value="Rare/Others"
+        {% if attack_type == 'Rare/Others' %}selected{% endif %}>
+        Rare/Others
+      </option>
+
+      <option
+        value="PortScan"
+        {% if attack_type == 'PortScan' %}selected{% endif %}>
+        PortScan
+      </option>
+
+      <option
+        value="BENIGN"
+        {% if attack_type == 'BENIGN' %}selected{% endif %}>
+        Benign
+      </option>
+
+    </select>
+
+
+    <!-- SORT -->
+    <select
+      class="f-btn"
+      id="sort-filter"
+      onchange="applyFilters()">
+
+      <option
+        value="newest"
+        {% if sort == 'newest' %}selected{% endif %}>
+        Most Recent
+      </option>
+
+      <option
+        value="oldest"
+        {% if sort == 'oldest' %}selected{% endif %}>
+        Oldest First
+      </option>
+
+    </select>
+
+
+    <!-- CONFIDENCE TOGGLE -->
+    <button
+      type="button"
+      class="f-btn"
+      id="conf-toggle"
+      onclick="toggleConfidence()">
+      Show Confidence Level
+    </button>
+
+
+    <!-- CLEAR FILTER -->
+    {% if severity != 'all' or attack_type != 'all' %}
+
+      <a
+        href="/alerts"
+        class="f-btn clear-filter">
+        ✕ Clear Filter
+      </a>
+
+    {% endif %}
+
+  </div>
+
 </div>
-
 
 <!-- COLUMN HEADERS -->
 <div class="alert-row"
@@ -55,7 +151,8 @@
     <div>Attack Type</div>
   </div>
 
-  <div class="confidence-level" style="margin-left:455px; text-align:center;">
+  <div class="confidence-level confidence-column"
+     style="display:none; margin-left:455px; text-align:center;">
     <div>Model</div>
     <div>Confidence Level</div>
   </div>
@@ -108,8 +205,10 @@
     </div>
 
     <div class="a-right" style="margin-left:auto;text-align:right;">
-      <div class="a-conf">{{ alert.confidence }}%</div>
+    <div class="a-conf confidence-column" style="display:none;">
+      {{ alert.confidence }}%
       <div class="a-time">{{ alert.time }}</div>
+    </div>
     </div>
 
     <!-- TAG -->
@@ -190,11 +289,40 @@
 {% block scripts %}
 <script>
 
+function toggleConfidence() {
+
+    const btn = document.getElementById('conf-toggle');
+
+    const confElements =
+        document.querySelectorAll('.confidence-column');
+
+    const isHidden =
+        confElements[0].style.display === 'none';
+
+    confElements.forEach(element => {
+
+        element.style.display =
+            isHidden ? '' : 'none';
+
+    });
+
+    btn.textContent =
+        isHidden
+            ? 'Hide Confidence Level'
+            : 'Show Confidence Level';
+}
+
+
 function applyFilters() {
+
     const type = document.getElementById('type-filter').value;
     const sort = document.getElementById('sort-filter').value;
     const severity = '{{ severity }}';
-    window.location.href = `/alerts?severity=${severity}&type=${encodeURIComponent(type)}&sort=${encodeURIComponent(sort)}`;
+
+    window.location.href =
+        `/alerts?severity=${severity}` +
+        `&type=${encodeURIComponent(type)}` +
+        `&sort=${encodeURIComponent(sort)}`;
 }
 
 function filterAlerts() {

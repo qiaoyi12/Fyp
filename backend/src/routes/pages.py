@@ -191,7 +191,7 @@ def dashboard():
 def alert_feed():
     severity = request.args.get('severity', 'all')
     attack_type = request.args.get('type', 'all')
-    sort = request.args.get('sort', 'confidence_desc')
+    sort = request.args.get('sort', 'newest')
     alerts = data_service.get_alert_feed(
         session['user_id'], session['role'], severity, attack_type, sort
     )
@@ -232,11 +232,7 @@ def update_alert_tag(alert_id):
 
     data_service.update_alert_tag(alert_id, tag)
 
-    return redirect(url_for(
-        'pages.alert_feed',
-        severity=request.args.get('severity', 'all'),
-        type=request.args.get('type', 'all')
-    ))
+    return redirect(request.referrer or url_for('pages.alert_feed'))
 
 @pages_bp.route('/alerts/<int:alert_id>/remarks', methods=['POST'])
 @login_required
@@ -269,7 +265,7 @@ def request_log_detail(log_id):
     alert = data_service.create_alert_from_traffic_log(traffic_log)
     return redirect(url_for('pages.threat_detail', alert_id=alert.id))
 
-# upload of csv files for admin
+# route to upload of csv files for admin
 @pages_bp.route('/upload', methods=['GET', 'POST'])
 @admin_required
 def upload():

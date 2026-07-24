@@ -587,3 +587,24 @@ body {
   font-size: 10px;
 }
 .hidden-row { display: none !important; }
+
+
+.filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.filter-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
