@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Resolved Tickets — IDS{% endblock %}
+{% block page_title %}Resolved Tickets{% endblock %}
+{% block status_text %}Live{% endblock %}
+
+{% block content %}
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+
+  <div class="filter-left">
+    <a href="/resolved?severity=high&type={{ attack_type }}&sort={{ sort }}"
+       class="f-btn high {% if severity == 'high' %}active{% endif %}">High</a>
+    <a href="/resolved?severity=medium&type={{ attack_type }}&sort={{ sort }}"
+       class="f-btn medium {% if severity == 'medium' %}active{% endif %}">Medium</a>
+    <a href="/resolved?severity=normal&type={{ attack_type }}&sort={{ sort }}"
+       class="f-btn normal {% if severity == 'normal' %}active{% endif %}">Normal</a>
+  </div>
+
+  <div class="filter-right">
+    <select class="f-btn" id="type-filter" onchange="applyFilters()">
+      <option value="all" {% if attack_type == 'all' %}selected{% endif %}>All Types</option>
+      <option value="Web Attack" {% if attack_type == 'Web Attack' %}selected{% endif %}>Web Attack</option>
+      <option value="Bot/Patator" {% if attack_type == 'Bot/Patator' %}selected{% endif %}>Bot/Patator</option>
+      <option value="DDoS" {% if attack_type == 'DDoS' %}selected{% endif %}>DDoS</option>
+      <option value="DoS" {% if attack_type == 'DoS' %}selected{% endif %}>DoS</option>
+      <option value="Rare/Others" {% if attack_type == 'Rare/Others' %}selected{% endif %}>Rare/Others</option>
+      <option value="PortScan" {% if attack_type == 'PortScan' %}selected{% endif %}>PortScan</option>
+      <option value="BENIGN" {% if attack_type == 'BENIGN' %}selected{% endif %}>Benign</option>
+    </select>
+
+    <select class="f-btn" id="sort-filter" onchange="applyFilters()">
+      <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Most Recent</option>
+      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Oldest First</option>
+    </select>
+
+    <button type="button" class="f-btn" id="conf-toggle" onclick="toggleConfidence()">Show Confidence Level</button>
+
+    {% if severity != 'all' or attack_type != 'all' %}
+      <a href="/resolved" class="f-btn clear-filter">✕ Clear Filter</a>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- COLUMN HEADERS -->
+<div class="alert-row"
+     style="position:sticky; top:0; z-index:100; background:#031c35; cursor:default; font-weight:600; color:#5A7A9A; font-size:11px; text-transform:uppercase; border-bottom:1px solid #1A3A5A;">
+  <span class="level" style="background:transparent;">Ticket ID</span>
+  <span class="level" style="background:transparent;">Severity</span>
+  <div class="alert-main"><div>Attack Type</div></div>
+  <div class="confidence-level confidence-column" style="display:none; margin-left:455px; text-align:center;">
+    <div>Model</div><div>Confidence Level</div>
+  </div>
+  <div class="a-right" style="margin-left:auto; text-align:right;"><div>Status</div></div>
+</div>
+
+<!-- ALERT ROWS -->
+<div id="alert-list">
+  {% for alert in alerts %}
+  <div class="alert-row" data-prediction="{{ alert.prediction }}"
+       onclick="window.location.href='/alerts/{{ alert.id }}'" style="cursor:pointer;">
+
+    <div class="a-title">#{{ alert.ticket_id if alert.ticket_id else alert.id }}</div>
+
+    <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
+
+    <div class="alert-main">
+      <div class="a-title">{{ alert.prediction }} Detected</div>
+      <div class="a-meta">{{ alert.reason }}</div>
+      <div class="a-meta">
+        XGB: {{ alert.xgb_vote }} &nbsp;·&nbsp; RF: {{ alert.rf_vote }} &nbsp;·&nbsp;
+        <span style="color:{% if alert.consensus == '✓ Consensus' %}#1DB954{% else %}#F39C12{% endif %}">
+          {{ alert.consensus }}
+        </span>
+      </div>
+    </div>
+
+    <div class="a-right" style="margin-left:auto;text-align:right;">
+      <div class="a-conf confidence-column" style="display:none;">
+        {{ alert.confidence }}%
+        <div class="a-time">{{ alert.time }}</div>
+      </div>
+    </div>
+
+    <!-- TAG (still editable — resolving-back-to-unreviewed etc) -->
+    <div class="a-tag" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">
+      <form action="{{ url_for('pages.update_alert_tag', alert_id=alert.id) }}" method="POST">
+        <select class="tag-select" name="tag" onclick="event.stopPropagation();"
+                onmousedown="event.stopPropagation();" onchange="this.form.submit()">
+          <option value="Unreviewed" {% if alert.tag=='Unreviewed' %}selected{% endif %}>Unreviewed</option>
+          <option value="Needs Action" {% if alert.tag=='Needs Action' %}selected{% endif %}>Needs Action</option>
+          <option value="Monitoring" {% if alert.tag=='Monitoring' %}selected{% endif %}>Monitoring</option>
+          <option value="Resolved" {% if alert.tag=='Resolved' %}selected{% endif %}>Resolved</option>
+          <option value="False Positive" {% if alert.tag=='False Positive' %}selected{% endif %}>✔ False Positive</option>
+        </select>
+      </form>
+    </div>
+  </div>
+
+  <div class="a-remarks" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">
+    <form action="{{ url_for('pages.update_alert_remarks', alert_id=alert.id) }}" method="POST" onsubmit="event.stopPropagation();">
+      <input type="text" name="remarks" class="remarks-input" placeholder="Add remark..."
+             value="{{ alert.remarks }}" onclick="event.stopPropagation();"
+             onmousedown="event.stopPropagation();" onblur="this.form.submit()" />
+    </form>
+  </div>
+
+  {% else %}
+  <div class="empty-alerts">
+    {% if no_assignments %}No analyses assigned to you yet.{% else %}No resolved tickets found.{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="table-footer">
+  Showing {{ alerts|length }} resolved ticket(s)
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleConfidence() {
+    const btn = document.getElementById('conf-toggle');
+    const confElements = document.querySelectorAll('.confidence-column');
+    const isHidden = confElements[0].style.display === 'none';
+    confElements.forEach(el => { el.style.display = isHidden ? '' : 'none'; });
+    btn.textContent = isHidden ? 'Hide Confidence Level' : 'Show Confidence Level';
+}
+
+function applyFilters() {
+    const type = document.getElementById('type-filter').value;
+    const sort = document.getElementById('sort-filter').value;
+    const severity = '{{ severity }}';
+    window.location.href = `/resolved?severity=${severity}&type=${encodeURIComponent(type)}&sort=${encodeURIComponent(sort)}`;
+}
+</script>
+{% endblock %}

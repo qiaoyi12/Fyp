@@ -128,6 +128,7 @@ class Alert(db.Model):
     analysis_id    = db.Column(db.Integer, db.ForeignKey('analysis_results.id'), nullable=False)
     user_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     row_index      = db.Column(db.Integer)
+    ticket_id      = db.Column(db.Integer)
     # prediction of attack
     prediction     = db.Column(db.String(50))
     severity       = db.Column(db.String(20))
@@ -171,6 +172,7 @@ class Alert(db.Model):
 
         return {
             'id':          self.id,
+            'ticket'    :  self.ticket_id,
             'prediction':  self.prediction,
             'severity':    self.severity,
             'confidence':  self.confidence,

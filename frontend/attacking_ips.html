@@ -8,8 +8,10 @@
 
 <!-- FILTER BAR -->
 <div class="filter-bar">
-  <input type="date" class="f-btn" id="date-from" value="{{ date_from }}" onchange="setParam('from', this.value)" title="From date">
-  <input type="date" class="f-btn" id="date-to" value="{{ date_to }}" onchange="setParam('to', this.value)" title="To date">
+  <input type="date" class="f-btn" id="date-from" value="{{ date_from }}" onchange="setParam('from', this.value)"
+    title="From date">
+  <input type="date" class="f-btn" id="date-to" value="{{ date_to }}" onchange="setParam('to', this.value)"
+    title="To date">
   <a href="/attackingIPS" class="f-btn">Clear Filters</a>
 </div>
 
@@ -39,7 +41,9 @@
     <span class="sev-badge sev-{{ entry.severity }}">{{ entry.severity.upper() }}</span>
 
     <div class="alert-main">
-      <div class="a-title">{{ entry.ip }}</div>
+      <a href="/alerts?ip={{ entry.ip }}" class="a-title" style="text-decoration:underline;cursor:pointer;">
+        {{ entry.ip }}
+      </a>
       <div class="a-meta">
         {{ entry.count }} attack(s) · Most common: {{ entry.top_attack_type }}
         &nbsp;·&nbsp; Last seen: {{ entry.last_seen }}
@@ -66,7 +70,8 @@
     </div>
   </div>
   {% else %}
-  <div class="empty-alerts">{% if no_assignments %}No analyses assigned to you yet.{% else %}No alerts found for this date range.{% endif %}</div>
+  <div class="empty-alerts">{% if no_assignments %}No analyses assigned to you yet.{% else %}No alerts found for this
+    date range.{% endif %}</div>
   {% endfor %}
 </div>
 

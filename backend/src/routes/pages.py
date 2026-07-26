@@ -192,14 +192,24 @@ def alert_feed():
     severity = request.args.get('severity', 'all')
     attack_type = request.args.get('type', 'all')
     sort = request.args.get('sort', 'newest')
+    ip = request.args.get('ip', None)
+
     alerts = data_service.get_alert_feed(
-        session['user_id'], session['role'], severity, attack_type, sort
+        session['user_id'], session['role'], severity, attack_type, sort, ip=ip
     )
+
+    traffic_log_count = None                                         
+    if ip:                                                            
+        traffic_log_count = data_service.get_traffic_log_count_by_ip( 
+            session['user_id'], session['role'], ip)                  
+
     no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
     return render_template('alert_feed.html',
         alerts=alerts, severity=severity, attack_type=attack_type, sort=sort,
+        ip=ip, traffic_log_count=traffic_log_count,                   # ADD traffic_log_count
         no_assignments=no_assignments,
         user=session['user'], role=session['role'])
+
 
 @pages_bp.route('/alerts/<int:alert_id>')
 @login_required
@@ -478,14 +488,14 @@ def blacklist_add():
     reason = request.form.get('reason', '').strip()
     if ip_address:
         data_service.add_blacklist_ip(ip_address, reason, session['user_id'])
-    return redirect(url_for('pages.report_analysis'))
+    return redirect(url_for('pages.attacking_ips'))
 
 
 @pages_bp.route('/blacklist/remove/<int:entry_id>', methods=['POST'])
 @admin_required
 def blacklist_remove(entry_id):
     data_service.remove_blacklist_ip(entry_id)
-    return redirect(url_for('pages.report_analysis'))
+    return redirect(url_for('pages.attacking_ips'))
 
 
 @pages_bp.route('/blacklist/remove_by_ip', methods=['POST'])
@@ -494,8 +504,28 @@ def blacklist_remove_by_ip():
     ip_address = request.form.get('ip_address', '').strip()
     if ip_address:
         data_service.remove_blacklist_ip_by_address(ip_address)
-    return redirect(url_for('pages.report_analysis'))
+    return redirect(url_for('pages.attacking_ips'))
 
+# resolved page 
+@pages_bp.route('/resolved')
+@login_required
+def resolved_tickets():
+    severity = request.args.get('severity', 'all')
+    attack_type = request.args.get('type', 'all')
+    sort = request.args.get('sort', 'newest')
+
+    tickets = data_service.get_resolved_tickets(
+        session['user_id'], session['role'], severity, attack_type, sort
+    )
+
+    return render_template(
+        'resolved.html',
+        alerts=tickets,
+        severity=severity,
+        attack_type=attack_type,
+        sort=sort,
+        user=session['user'], role=session['role']
+    )
 
 
 

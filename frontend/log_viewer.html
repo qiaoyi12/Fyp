@@ -29,6 +29,7 @@
   <table class="log-table">
     <thead>
       <tr>
+        <th>Ticket ID</th>
         <th>Timestamp</th>
         <th>Source IP</th>
         <th>Destination</th>
@@ -42,6 +43,7 @@
       {% for log in logs %}
 
       <tr class="{% if log.flagged %}flagged{% endif %}" data-src="{{ log.source }}" data-type="{{ log.type }}">
+        <td>{{ log.ticket_id if log.ticket_id else '—' }}</td> 
         <td>{{ log.timestamp }}</td>
         <td class="{% if log.severity == 'high' %}td-high{% elif log.severity == 'medium' %}td-medium{% endif %}">
           {{ log.source }}

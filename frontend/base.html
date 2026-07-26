@@ -8,7 +8,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Intrusion Detection System{% endblock %}</title>
   <link rel="stylesheet" href="/frontend/CSS/styles.css" />
-  {% block extra_css %}{% endblock %}
 </head>
 
 <body>
@@ -41,6 +40,11 @@
           <div class="nav-dot"></div>
           Log Viewer
         </a>
+        
+        <a href="/resolved" class="nav-item {% if active_page == 'resolved' %}active{% endif %}">
+          <div class="nav-dot"></div>
+          Resolved Tickets
+        </a>
 
         <a href="/attackingIPS" class="nav-item {% if active_page == 'attackingIPS' %}active{% endif %}">
           <div class="nav-dot"></div>
@@ -58,11 +62,6 @@
         <a href="/assign-manager" class="nav-item {% if active_page == 'assign_manager' %}active{% endif %}">
           <div class="nav-dot"></div>
           Assign to Manager
-        </a>
-
-        <a href="/manage-analysts" class="nav-item {% if active_page == 'manage_analysts' %}active{% endif %}">
-          <div class="nav-dot"></div>
-          Manage Analysts
         </a>
 
         <a href="/insights" class="nav-item {% if active_page == 'insights' %}active{% endif %}">

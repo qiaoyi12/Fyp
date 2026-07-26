@@ -5,7 +5,19 @@
 {% block status_text %}Live{% endblock %}
 
 {% block content %}
+{% if ip %}
+<div class="filter-bar" style="margin-bottom:8px;">
+  <span class="f-btn active">Filtered by IP: {{ ip }}</span>
+  <a href="/alerts" class="f-btn clear-filter">✕ Clear IP Filter</a>
+</div>
 
+{% if traffic_log_count and traffic_log_count > alerts|length %}
+<div class="filter-bar" style="margin-bottom:8px; background:#1A2A3A;">
+  Showing {{ alerts|length }} of {{ traffic_log_count }} total flagged rows for this IP.
+  <a href="/logs?search={{ ip }}" class="f-btn" style="margin-left:8px;">View full traffic in Log Viewer →</a>
+</div>
+{% endif %}
+{% endif %}
 <!-- FILTER BAR -->
 <!-- FILTER BAR -->
 <div class="filter-bar">
