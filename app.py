@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from backend.src.database.db import db, bcrypt
 from backend.src.routes.upload import upload_bp
 from backend.src.routes.pages import pages_bp
+from backend.src.routes.chatbot_routes import chatbot_bp
 
 
 load_dotenv()
@@ -28,6 +29,7 @@ bcrypt.init_app(app)
 # Register blueprints
 app.register_blueprint(pages_bp)
 app.register_blueprint(upload_bp, url_prefix='/api')
+app.register_blueprint(chatbot_bp, url_prefix='/api')
 
 # ─── FED: Analyst Agent ───────────────────────────────────────────────────────
 from backend.src.routes.analyst import analyst_bp
@@ -43,6 +45,14 @@ with app.app_context():
         if 'file_ids' not in columns:
             with db.engine.begin() as connection:
                 connection.execute(text("ALTER TABLE analysis_results ADD COLUMN file_ids TEXT"))
+
+    if 'users' in inspector.get_table_names():
+        user_columns = {column['name'] for column in inspector.get_columns('users')}
+        if 'level' not in user_columns:
+            with db.engine.begin() as connection:
+                connection.execute(text(
+                    "ALTER TABLE users ADD COLUMN level VARCHAR(20) NOT NULL DEFAULT 'junior'"
+                ))
 
     if 'alerts' in inspector.get_table_names():
         alert_columns = {column['name'] for column in inspector.get_columns('alerts')}
