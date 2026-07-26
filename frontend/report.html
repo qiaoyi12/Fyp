@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Report — Alert #{{ alert.id }}{% endblock %}
+{% block page_title %}Analyst Agent — Incident Report{% endblock %}
+
+{% block content %}
+
+<!-- BACK LINK -->
+<a href="/threat/{{ alert.id }}" class="back-link">← Back to Threat Detail</a>
+
+<!-- ALERT SUMMARY CARD -->
+<div style="background:#080C16;border:1px solid #0E1A2A;border-radius:8px;
+            padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:16px">
+  <span class="sev-badge sev-{{ alert.severity }}">{{ alert.severity.upper() }}</span>
+  <div style="flex:1">
+    <div style="font-size:13px;color:#C8DFF0;font-weight:600;margin-bottom:3px">
+      {{ alert.description }}
+    </div>
+    <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace">
+      {{ alert.source }} · {{ alert.destination }} · {{ alert.timestamp }}
+    </div>
+  </div>
+  <div style="text-align:right;flex-shrink:0">
+    <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;margin-bottom:3px">
+      Confidence
+    </div>
+    <div style="font-size:16px;color:#E74C3C;font-family:'JetBrains Mono',monospace;font-weight:600">
+      {{ alert.confidence }}%
+    </div>
+  </div>
+</div>
+
+<!-- PRE-REPORT INVESTIGATION -->
+<div style="background:#080C16;border:1px solid #0E1A2A;border-radius:8px;
+            padding:16px 20px;margin-bottom:16px">
+  <div style="font-size:8px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;
+              letter-spacing:2.5px;text-transform:uppercase;margin-bottom:12px;
+              padding-bottom:8px;border-bottom:1px solid #0A1422;font-weight:600">
+    Pre-Report Investigation
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div style="background:#070B14;border:1px solid #0E1A2A;border-radius:8px;padding:14px">
+      <div style="font-size:8px;color:#4A7A9A;letter-spacing:1.5px;text-transform:uppercase;
+                  margin-bottom:5px;font-family:'JetBrains Mono',monospace">Source IP</div>
+      <div style="font-size:12px;color:#E74C3C;font-family:'JetBrains Mono',monospace">
+        {{ alert.source }}
+      </div>
+    </div>
+    <div style="background:#070B14;border:1px solid #0E1A2A;border-radius:8px;padding:14px">
+      <div style="font-size:8px;color:#4A7A9A;letter-spacing:1.5px;text-transform:uppercase;
+                  margin-bottom:5px;font-family:'JetBrains Mono',monospace">Previous Appearances</div>
+      <div style="font-size:12px;font-family:'JetBrains Mono',monospace;
+                  color:{% if related_alerts %}#F39C12{% else %}#1DB954{% endif %}">
+        {% if related_alerts %}
+          {{ related_alerts|length }} other alert(s) found
+        {% else %}
+          First occurrence
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if related_alerts %}
+  <div>
+    <div style="font-size:8px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;
+                letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">
+      Related Alerts from Same IP
+    </div>
+    {% for a in related_alerts %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                background:#070B14;border:1px solid #0E1A2A;border-radius:6px;margin-bottom:5px">
+      <span class="sev-badge sev-{{ a.severity }}">{{ a.severity.upper() }}</span>
+      <div style="flex:1;font-size:10px;color:#7A9AB8">{{ a.description }}</div>
+      <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace">
+        {{ a.time }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="font-size:10px;color:#1DB954;font-family:'JetBrains Mono',monospace;
+              padding:8px 12px;background:#061408;border:1px solid #0E2A0E;border-radius:6px">
+    ✓ No previous activity from this IP detected in the system.
+  </div>
+  {% endif %}
+</div>
+
+<!-- GENERATE BUTTON -->
+<div id="generate-section" style="margin-bottom:16px">
+  <button onclick="generateReport()" id="generate-btn"
+    style="display:flex;align-items:center;gap:10px;padding:12px 24px;
+           background:rgba(61,142,255,0.1);border:1px solid #1A3A6A;border-radius:6px;
+           color:#3D8EFF;font-family:'JetBrains Mono',monospace;font-size:10px;
+           letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all 0.15s"
+    onmouseover="this.style.background='rgba(61,142,255,0.15)'"
+    onmouseout="this.style.background='rgba(61,142,255,0.1)'">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    Generate Incident Report with AI
+  </button>
+  <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;margin-top:6px">
+    Powered by GPT-4o-mini · Investigation complete · Report generates in ~5 seconds
+  </div>
+</div>
+
+<!-- LOADING STATE -->
+<div id="loading-section" style="display:none;margin-bottom:16px">
+  <div style="background:#080C16;border:1px solid #0E1A2A;border-radius:8px;
+              padding:32px;text-align:center">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px">
+      <div style="width:8px;height:8px;border-radius:50%;background:#3D8EFF;
+                  animation:pulse 1s infinite"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:#3D8EFF;
+                  animation:pulse 1s infinite 0.2s"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:#3D8EFF;
+                  animation:pulse 1s infinite 0.4s"></div>
+    </div>
+    <div style="font-size:11px;color:#4A7A9A;font-family:'JetBrains Mono',monospace"
+         id="loading-text">
+      Analysing alert data...
+    </div>
+  </div>
+</div>
+
+<!-- REPORT EDITOR -->
+<div id="report-section" style="display:none">
+
+  <!-- HEADER + BUTTONS -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div>
+      <div style="font-size:13px;color:#C8DFF0;font-weight:600">Generated Incident Report</div>
+      <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;margin-top:2px">
+        Review and edit before submitting to admin
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="downloadPDF()"
+        style="display:flex;align-items:center;gap:6px;padding:8px 14px;
+               background:transparent;border:1px solid #0E1A2A;border-radius:6px;
+               color:#4A7A9A;font-family:'JetBrains Mono',monospace;font-size:9px;
+               letter-spacing:1px;cursor:pointer;transition:all 0.15s"
+        onmouseover="this.style.borderColor='#1A3A6A';this.style.color='#3D8EFF'"
+        onmouseout="this.style.borderColor='#0E1A2A';this.style.color='#4A7A9A'">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download PDF
+      </button>
+      <button onclick="submitReport()" id="submit-btn"
+        style="display:flex;align-items:center;gap:6px;padding:8px 14px;
+               background:rgba(61,142,255,0.1);border:1px solid #1A3A6A;border-radius:6px;
+               color:#3D8EFF;font-family:'JetBrains Mono',monospace;font-size:9px;
+               letter-spacing:1px;cursor:pointer;transition:all 0.15s"
+        onmouseover="this.style.background='rgba(61,142,255,0.15)'"
+        onmouseout="this.style.background='rgba(61,142,255,0.1)'">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+        Submit to Admin
+      </button>
+    </div>
+  </div>
+
+  <!-- EDITABLE REPORT TEXTAREA -->
+  <textarea id="report-content"
+    style="width:100%;min-height:500px;background:#080C16;border:1px solid #0E1A2A;
+           border-radius:8px;padding:20px;font-family:'JetBrains Mono',monospace;
+           font-size:10px;color:#C8DFF0;line-height:1.9;resize:vertical;outline:none;
+           margin-bottom:8px"
+    onfocus="this.style.borderColor='#1A3A6A'"
+    onblur="this.style.borderColor='#0E1A2A'"
+    placeholder="Report will appear here..."></textarea>
+
+  <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;
+              margin-bottom:16px">
+    💡 You can edit this report before submitting. Press Submit to Admin when ready.
+  </div>
+
+  <!-- SUCCESS MESSAGE -->
+  <div id="submit-success" style="display:none">
+    <div style="background:#061408;border:1px solid #0E2A0E;border-radius:6px;
+                padding:10px 14px;font-size:10px;color:#1DB954;
+                font-family:'JetBrains Mono',monospace">
+      ✓ Report submitted to admin successfully. PDF download has started.
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var alertId = {{ alert.id }}
+
+  // ── Generate report ─────────────────────────────────────────────────────────
+  function generateReport() {
+    document.getElementById('generate-section').style.display = 'none'
+    document.getElementById('loading-section').style.display = 'block'
+
+    var messages = [
+      'Analysing alert data...',
+      'Investigating source IP history...',
+      'Cross-referencing related incidents...',
+      'Assessing impact and severity...',
+      'Generating incident report...'
+    ]
+    var i = 0
+    var interval = setInterval(function() {
+      i = (i + 1) % messages.length
+      document.getElementById('loading-text').textContent = messages[i]
+    }, 1500)
+
+    fetch('/report/' + alertId + '/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    })
+    .then(function(r) { return r.json() })
+    .then(function(data) {
+      clearInterval(interval)
+      document.getElementById('loading-section').style.display = 'none'
+      if (data.error) {
+        document.getElementById('generate-section').style.display = 'block'
+        alert('Error: ' + data.error)
+        return
+      }
+      document.getElementById('report-content').value = data.report
+      document.getElementById('report-section').style.display = 'block'
+    })
+    .catch(function() {
+      clearInterval(interval)
+      document.getElementById('loading-section').style.display = 'none'
+      document.getElementById('generate-section').style.display = 'block'
+      alert('Connection error. Please try again.')
+    })
+  }
+
+  // ── Submit report ───────────────────────────────────────────────────────────
+  function submitReport() {
+    var content = document.getElementById('report-content').value
+    if (!content.trim()) {
+      alert('Please generate a report first.')
+      return
+    }
+    var btn = document.getElementById('submit-btn')
+    btn.textContent = 'Submitting...'
+    btn.disabled = true
+
+    fetch('/report/' + alertId + '/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({report: content})
+    })
+    .then(function(r) { return r.json() })
+    .then(function(data) {
+      if (data.success) {
+        document.getElementById('submit-success').style.display = 'block'
+        btn.textContent = '✓ Submitted'
+        btn.style.color = '#1DB954'
+        btn.style.borderColor = '#0E2A0E'
+        btn.style.background = 'rgba(29,185,84,0.08)'
+        downloadPDF()
+      }
+    })
+    .catch(function() {
+      btn.textContent = 'Submit to Admin'
+      btn.disabled = false
+      alert('Submission failed. Please try again.')
+    })
+  }
+
+  // ── Download PDF ────────────────────────────────────────────────────────────
+  function downloadPDF() {
+    var content   = document.getElementById('report-content').value
+    var alertDesc = '{{ alert.description }}'
+    var alertSrc  = '{{ alert.source }}'
+    var alertTs   = '{{ alert.timestamp }}'
+    var analyst   = '{{ user }}'
+
+    var html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Incident Report — Alert #${alertId}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.8;
+           color: #1a1a2e; padding: 40px; max-width: 800px; margin: 0 auto; }
+    h1   { font-size: 20px; color: #0a1628; border-bottom: 2px solid #0a1628;
+           padding-bottom: 8px; margin-bottom: 20px; }
+    h2   { font-size: 14px; color: #0a1628; margin-top: 24px; margin-bottom: 8px;
+           border-left: 3px solid #3D8EFF; padding-left: 10px; }
+    .meta { background:#f0f4f8; padding:12px 16px; border-radius:6px;
+            margin-bottom:24px; font-size:11px; line-height:2; }
+    pre  { white-space: pre-wrap; font-family: Arial, sans-serif; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1>Incident Report — Alert #${alertId}</h1>
+  <div class="meta">
+    <strong>Alert:</strong> ${alertDesc}<br/>
+    <strong>Source IP:</strong> ${alertSrc} &nbsp;&nbsp;
+    <strong>Timestamp:</strong> ${alertTs}<br/>
+    <strong>Generated by:</strong> Analyst Agent (GPT-4o-mini) &nbsp;&nbsp;
+    <strong>Analyst:</strong> ${analyst}
+  </div>
+  <pre>${content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+</body>
+</html>`
+
+    var blob  = new Blob([html], {type: 'text/html'})
+    var url   = URL.createObjectURL(blob)
+    var link  = document.createElement('a')
+    link.href = url
+    link.download = 'incident_report_alert_' + alertId + '.html'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+</script>
+
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity:0.3; transform:scale(0.8); }
+    50%       { opacity:1;   transform:scale(1);   }
+  }
+</style>
+{% endblock %}

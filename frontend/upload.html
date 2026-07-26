@@ -101,7 +101,6 @@
     if (!input.files.length) return;
 
     const names = Array.from(input.files).map(file => file.name).join(", ");
-
     document.getElementById("file-name").textContent = names;
     document.getElementById("selected-file").style.display = "block";
 
