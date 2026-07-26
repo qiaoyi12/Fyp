@@ -31,7 +31,7 @@ test_agent = Agent(
 )
 
 print("Calling the OpenAI API...")
-result = Runner.run_sync(test_agent, "Say hello and confirm you're working.")
+result = Runner.run_sync(test_agent, "Say ni hao and confirm you're working.")
 
 print("\n--- SUCCESS ---")
 print(result.final_output)

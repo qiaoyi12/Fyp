@@ -539,3 +539,13 @@ def attack_overview():
         overview=data,
         user=session['user'], role=session['role'])
 
+# incident report page only availble to the admin
+# pages.py
+@pages_bp.route('/incident-reports')
+@login_required
+@admin_required
+def incident_reports():
+    reports = data_service.get_all_incident_reports()
+    return render_template('incident_reports.html',
+        reports=reports, user=session['user'], role=session['role'],
+        active_page='incident_reports')

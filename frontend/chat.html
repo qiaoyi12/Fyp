@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Daya — AI Security Assistant{% endblock %}
+{% block page_title %}Daya — AI Security Assistant{% endblock %}
+{% block status_text %}System Operational{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;flex-direction:column;height:calc(100vh - 52px - 48px);max-width:900px;margin:0 auto">
+
+  <!-- CHAT HEADER -->
+  <div style="background:#080C16;border:1px solid #0E1A2A;border-radius:8px;padding:16px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px">
+    <div style="width:40px;height:40px;border-radius:50%;background:rgba(61,142,255,0.1);border:1px solid #1A3A6A;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3D8EFF" stroke-width="2">
+        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+        <path d="M12 6v6l4 2"/>
+      </svg>
+    </div>
+    <div>
+      <div style="font-size:13px;color:#C8DFF0;font-weight:600">Daya</div>
+      <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-top:2px">AI Cybersecurity Assistant · Powered by LLaMA</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+      <div style="width:6px;height:6px;border-radius:50%;background:#1DB954"></div>
+      <span style="font-size:9px;color:#1DB954;font-family:'JetBrains Mono',monospace">Online</span>
+    </div>
+  </div>
+
+  <!-- SUGGESTED PROMPTS -->
+  <div id="suggestions" style="margin-bottom:12px">
+    <div style="font-size:8px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Suggested Questions</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      {% for prompt in [
+        'How do I mitigate a SQL Injection attack?',
+        'What are the steps to stop a Brute Force attack?',
+        'How do I respond to a Port Scan?',
+        'What should I do if malware is detected?',
+        'How do I prevent privilege escalation?',
+        'What is a DNS anomaly and how do I fix it?'
+      ] %}
+      <button onclick="usePrompt('{{ prompt }}')"
+        style="font-size:9px;padding:6px 12px;border-radius:6px;background:#080C16;
+               border:1px solid #0E1A2A;color:#4A7A9A;font-family:'JetBrains Mono',monospace;
+               cursor:pointer;transition:all 0.15s;text-align:left"
+        onmouseover="this.style.borderColor='#1A3A6A';this.style.color='#3D8EFF'"
+        onmouseout="this.style.borderColor='#0E1A2A';this.style.color='#4A7A9A'">
+        {{ prompt }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- CHAT MESSAGES -->
+  <div id="chat-messages"
+       style="flex:1;overflow-y:auto;background:#080C16;border:1px solid #0E1A2A;
+              border-radius:8px;padding:16px;margin-bottom:12px;min-height:300px">
+
+    <!-- Welcome message -->
+    <div class="msg-wrap" style="display:flex;gap:10px;margin-bottom:16px">
+      <div style="width:28px;height:28px;border-radius:50%;background:rgba(61,142,255,0.1);
+                  border:1px solid #1A3A6A;display:flex;align-items:center;justify-content:center;
+                  flex-shrink:0;margin-top:2px">
+        <span style="font-size:9px;color:#3D8EFF;font-weight:600">D</span>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;margin-bottom:4px">
+          Daya · AI Assistant
+        </div>
+        <div style="background:#0D1422;border:1px solid #0E1A2A;border-radius:0 8px 8px 8px;
+                    padding:12px 14px;font-size:11px;color:#7A9AB8;line-height:1.7">
+          Hello! I'm <strong style="color:#3D8EFF">Daya</strong>, your AI cybersecurity assistant.
+          I can help you understand cyber attacks and provide mitigation steps and recommendations.
+          Ask me about any attack type detected in your system — such as SQL Injection, Brute Force,
+          Port Scans, Malware, or Privilege Escalation.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CHAT INPUT -->
+  <div style="background:#080C16;border:1px solid #0E1A2A;border-radius:8px;padding:12px 14px;
+              display:flex;align-items:flex-end;gap:10px">
+    <textarea id="chat-input"
+      placeholder="Ask Daya about an attack type or security threat..."
+      rows="1"
+      onkeydown="handleKey(event)"
+      oninput="autoResize(this)"
+      style="flex:1;background:transparent;border:none;outline:none;resize:none;
+             font-size:11px;color:#C8DFF0;font-family:'Syne',sans-serif;
+             line-height:1.6;max-height:120px;overflow-y:auto;padding:2px 0"></textarea>
+    <button onclick="sendMessage()" id="send-btn"
+      style="background:rgba(61,142,255,0.1);border:1px solid #1A3A6A;border-radius:6px;
+             padding:8px 16px;cursor:pointer;transition:all 0.15s;flex-shrink:0;
+             display:flex;align-items:center;gap:6px;color:#3D8EFF;
+             font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+      Send
+    </button>
+  </div>
+
+  <!-- CLEAR CHAT -->
+  <div style="text-align:center;margin-top:8px">
+    <button onclick="clearChat()"
+      style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;
+             background:transparent;border:none;cursor:pointer;letter-spacing:1px">
+      × Clear conversation
+    </button>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var history = []
+  var isLoading = false
+
+  // ── Send message ────────────────────────────────────────────────────────────
+  function sendMessage() {
+    if (isLoading) return
+    var input = document.getElementById('chat-input')
+    var message = input.value.trim()
+    if (!message) return
+
+    // Hide suggestions after first message
+    document.getElementById('suggestions').style.display = 'none'
+
+    // Add user message to UI
+    appendMessage('user', message)
+    history.push({role: 'user', content: message})
+    input.value = ''
+    input.style.height = 'auto'
+
+    // Show typing indicator
+    var typingId = showTyping()
+    isLoading = true
+    toggleSendBtn(false)
+
+    // Send to Flask
+    fetch('/chat/message', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: message, history: history.slice(0, -1)})
+    })
+    .then(function(r) { return r.json() })
+    .then(function(data) {
+      removeTyping(typingId)
+      isLoading = false
+      toggleSendBtn(true)
+      if (data.error) {
+        appendMessage('error', data.error)
+      } else {
+        appendMessage('assistant', data.reply)
+        history.push({role: 'assistant', content: data.reply})
+      }
+    })
+    .catch(function() {
+      removeTyping(typingId)
+      isLoading = false
+      toggleSendBtn(true)
+      appendMessage('error', 'Connection error. Make sure Ollama is running.')
+    })
+  }
+
+  // ── Append message to chat ──────────────────────────────────────────────────
+  function appendMessage(role, content) {
+    var container = document.getElementById('chat-messages')
+    var wrap = document.createElement('div')
+    wrap.style.cssText = 'display:flex;gap:10px;margin-bottom:16px'
+
+    if (role === 'user') {
+      wrap.innerHTML = `
+        <div style="flex:1"></div>
+        <div style="max-width:75%">
+          <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;margin-bottom:4px;text-align:right">
+            You
+          </div>
+          <div style="background:rgba(61,142,255,0.08);border:1px solid #1A3A6A;
+                      border-radius:8px 0 8px 8px;padding:12px 14px;font-size:11px;
+                      color:#C8DFF0;line-height:1.7;text-align:left">
+            ${escapeHtml(content)}
+          </div>
+        </div>
+        <div style="width:28px;height:28px;border-radius:50%;background:#0F2040;
+                    border:1px solid #1A3A6A;display:flex;align-items:center;
+                    justify-content:center;flex-shrink:0;margin-top:2px">
+          <span style="font-size:9px;color:#3D8EFF;font-weight:600">
+            {{ user[:1].upper() }}
+          </span>
+        </div>`
+    } else if (role === 'assistant') {
+      wrap.innerHTML = `
+        <div style="width:28px;height:28px;border-radius:50%;background:rgba(61,142,255,0.1);
+                    border:1px solid #1A3A6A;display:flex;align-items:center;
+                    justify-content:center;flex-shrink:0;margin-top:2px">
+          <span style="font-size:9px;color:#3D8EFF;font-weight:600">D</span>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;margin-bottom:4px">
+            Daya · AI Assistant
+          </div>
+          <div style="background:#0D1422;border:1px solid #0E1A2A;border-radius:0 8px 8px 8px;
+                      padding:12px 14px;font-size:11px;color:#7A9AB8;line-height:1.7">
+            ${formatResponse(content)}
+          </div>
+        </div>`
+    } else {
+      wrap.innerHTML = `
+        <div style="width:100%">
+          <div style="background:#1A0808;border:1px solid #3A1010;border-radius:6px;
+                      padding:10px 14px;font-size:10px;color:#E74C3C;
+                      font-family:'JetBrains Mono',monospace">
+            ⚠ ${escapeHtml(content)}
+          </div>
+        </div>`
+    }
+
+    container.appendChild(wrap)
+    container.scrollTop = container.scrollHeight
+  }
+
+  // ── Show typing indicator ───────────────────────────────────────────────────
+  function showTyping() {
+    var id = 'typing-' + Date.now()
+    var container = document.getElementById('chat-messages')
+    var wrap = document.createElement('div')
+    wrap.id = id
+    wrap.style.cssText = 'display:flex;gap:10px;margin-bottom:16px'
+    wrap.innerHTML = `
+      <div style="width:28px;height:28px;border-radius:50%;background:rgba(61,142,255,0.1);
+                  border:1px solid #1A3A6A;display:flex;align-items:center;
+                  justify-content:center;flex-shrink:0">
+        <span style="font-size:9px;color:#3D8EFF;font-weight:600">D</span>
+      </div>
+      <div style="background:#0D1422;border:1px solid #0E1A2A;border-radius:0 8px 8px 8px;
+                  padding:12px 14px;display:flex;align-items:center;gap:4px">
+        <div style="width:6px;height:6px;border-radius:50%;background:#3D8EFF;
+                    animation:pulse 1s infinite"></div>
+        <div style="width:6px;height:6px;border-radius:50%;background:#3D8EFF;
+                    animation:pulse 1s infinite 0.2s"></div>
+        <div style="width:6px;height:6px;border-radius:50%;background:#3D8EFF;
+                    animation:pulse 1s infinite 0.4s"></div>
+      </div>`
+    container.appendChild(wrap)
+    container.scrollTop = container.scrollHeight
+    return id
+  }
+
+  function removeTyping(id) {
+    var el = document.getElementById(id)
+    if (el) el.remove()
+  }
+
+  // ── Format response — convert markdown-like text to HTML ───────────────────
+  function formatResponse(text) {
+    return escapeHtml(text)
+      .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#C8DFF0">$1</strong>')
+      .replace(/^#{1,3} (.+)$/gm, '<div style="color:#3D8EFF;font-weight:600;margin:8px 0 4px;font-size:11px">$1</div>')
+      .replace(/^[\-\*] (.+)$/gm, '<div style="display:flex;gap:8px;margin:3px 0"><span style="color:#3D8EFF;flex-shrink:0">·</span><span>$1</span></div>')
+      .replace(/^\d+\. (.+)$/gm, '<div style="display:flex;gap:8px;margin:3px 0"><span style="color:#3D8EFF;flex-shrink:0;font-family:JetBrains Mono">·</span><span>$1</span></div>')
+      .replace(/\n\n/g, '<br/><br/>')
+      .replace(/\n/g, '<br/>')
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  }
+
+  // ── Use suggested prompt ────────────────────────────────────────────────────
+  function usePrompt(prompt) {
+    document.getElementById('chat-input').value = prompt
+    sendMessage()
+  }
+
+  // ── Handle Enter key ────────────────────────────────────────────────────────
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  // ── Auto resize textarea ────────────────────────────────────────────────────
+  function autoResize(el) {
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+  }
+
+  // ── Toggle send button ──────────────────────────────────────────────────────
+  function toggleSendBtn(enabled) {
+    var btn = document.getElementById('send-btn')
+    btn.disabled = !enabled
+    btn.style.opacity = enabled ? '1' : '0.5'
+    btn.style.cursor = enabled ? 'pointer' : 'not-allowed'
+  }
+
+  // ── Clear chat ──────────────────────────────────────────────────────────────
+  function clearChat() {
+    history = []
+    var container = document.getElementById('chat-messages')
+    container.innerHTML = `
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <div style="width:28px;height:28px;border-radius:50%;background:rgba(61,142,255,0.1);
+                    border:1px solid #1A3A6A;display:flex;align-items:center;
+                    justify-content:center;flex-shrink:0;margin-top:2px">
+          <span style="font-size:9px;color:#3D8EFF;font-weight:600">D</span>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:9px;color:#4A7A9A;font-family:'JetBrains Mono',monospace;margin-bottom:4px">
+            Daya · AI Assistant
+          </div>
+          <div style="background:#0D1422;border:1px solid #0E1A2A;border-radius:0 8px 8px 8px;
+                      padding:12px 14px;font-size:11px;color:#7A9AB8;line-height:1.7">
+            Conversation cleared. How can I help you?
+          </div>
+        </div>
+      </div>`
+    document.getElementById('suggestions').style.display = 'block'
+  }
+</script>
+
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+</style>
+{% endblock %}

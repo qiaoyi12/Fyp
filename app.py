@@ -31,6 +31,10 @@ app.register_blueprint(pages_bp)
 app.register_blueprint(upload_bp, url_prefix='/api')
 app.register_blueprint(chatbot_bp, url_prefix='/api')
 
+# ─── FED: Analyst Agent ───────────────────────────────────────────────────────
+from backend.src.routes.analyst import analyst_bp
+app.register_blueprint(analyst_bp)
+
 # Create DB tables
 with app.app_context():
     db.create_all()

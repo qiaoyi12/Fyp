@@ -268,3 +268,21 @@ class TrafficLog(db.Model):
             'severity':    self.severity,
             'flagged':     self.severity in ('high', 'medium'),
         }
+    
+# to save the report under 
+class IncidentReport(db.Model):
+    __tablename__ = 'incident_reports'
+    id           = db.Column(db.Integer, primary_key=True)
+    alert_id     = db.Column(db.Integer, db.ForeignKey('alerts.id'), nullable=False)
+    analyst_id   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    content      = db.Column(db.Text, nullable=False)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'alert_id': self.alert_id,
+            'analyst_id': self.analyst_id,
+            'content': self.content,
+            'submitted_at': self.submitted_at.strftime('%Y-%m-%d %H:%M'),
+        }

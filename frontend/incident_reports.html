@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Incident Reports — IDS{% endblock %}
+{% block page_title %}Incident Reports{% endblock %}
+{% block content %}
+<div style="overflow-x:auto">
+  <table class="log-table">
+    <thead>
+      <tr><th>Alert ID</th><th>Submitted By</th><th>Submitted At</th><th>Report</th></tr>
+    </thead>
+    <tbody>
+      {% for r in reports %}
+      <tr>
+        <td><a href="/threat/{{ r.alert_id }}">#{{ r.alert_id }}</a></td>
+        <td>{{ r.analyst_id }}</td>
+        <td>{{ r.submitted_at }}</td>
+        <td style="max-width:400px;white-space:pre-wrap;font-size:10px">{{ r.content[:200] }}...</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No reports submitted yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+
+<!--if does not work can show this to demo how it looks like-->
+<!--
+# seed_fake_reports.py — run once to populate test data
+from datetime import datetime, timedelta
+from backend.src.app import app, db  # adjust import path to match your actual app/db location
+from backend.src.models import IncidentReport, Alert, User
+
+FAKE_REPORTS = [
+    """# INCIDENT REPORT
+
+## 1. Executive Summary
+A DDoS attack was detected targeting the production web server, causing elevated traffic and service degradation. The attack has been mitigated with no data loss reported.
+
+## 2. Attack Analysis
+The traffic pattern shows a classic volumetric flood, with abnormally high packets-per-second from a single source IP hitting port 8080. XGBoost and Random Forest models both classified this with high confidence.
+
+## 3. IP Reputation & History
+This source IP has appeared in 2 prior alerts within the past 7 days, suggesting a repeat offender pattern.
+
+## 4. Impact Assessment
+Business Impact: HIGH
+Web-facing services experienced intermittent slowdowns during the attack window.
+
+## 5. Recommended Immediate Actions
+1. Block the source IP at firewall level.
+2. Enable rate-limiting on port 8080.
+3. Notify infrastructure team of service degradation.
+
+## 6. Prevention Measures
+1. Deploy DDoS mitigation service (e.g. Cloudflare).
+2. Set up automated IP blacklisting for repeat offenders.
+
+## 7. Analyst Notes
+Recommend escalating to Tier 2 for further monitoring over next 24 hours.
+""",
+    """# INCIDENT REPORT
+
+## 1. Executive Summary
+A brute-force login attempt was detected against an internal service, with 47 failed authentication attempts in under 5 minutes.
+
+## 2. Attack Analysis
+Pattern indicates automated credential-stuffing, not manual attempts, based on request timing consistency.
+
+## 3. IP Reputation & History
+First-time appearance of this IP in the system.
+
+## 4. Impact Assessment
+Business Impact: MEDIUM
+No successful authentication observed; account lockout policy triggered correctly.
+
+## 5. Recommended Immediate Actions
+1. Temporarily block source IP.
+2. Force password reset for targeted account as precaution.
+
+## 6. Prevention Measures
+1. Implement CAPTCHA after 3 failed attempts.
+2. Enable MFA for all privileged accounts.
+
+## 7. Analyst Notes
+Low severity given lockout worked as intended, but pattern worth monitoring.
+""",
+]
+
+with app.app_context():
+    # grab an existing alert + analyst user to attach fake reports to
+    alerts = Alert.query.limit(2).all()
+    analyst = User.query.filter_by(role='analyst').first()
+
+    if not alerts:
+        print("No alerts found in DB — upload/analyse a CSV first so there's something to attach reports to.")
+    elif not analyst:
+        print("No analyst user found — create one first.")
+    else:
+        for i, alert in enumerate(alerts):
+            report = IncidentReport(
+                alert_id=alert.id,
+                analyst_id=analyst.id,
+                content=FAKE_REPORTS[i % len(FAKE_REPORTS)],
+                submitted_at=datetime.utcnow() - timedelta(hours=i*3)
+            )
+            db.session.add(report)
+        db.session.commit()
+        print(f"Seeded {len(alerts)} fake incident report(s).")-->

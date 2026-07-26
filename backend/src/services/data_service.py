@@ -2,10 +2,9 @@
 import json
 import time
 import pandas as pd
-from matplotlib.pylab import record
 from datetime import timedelta, datetime
 from sqlalchemy import or_
-from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User, TrafficLog
+from backend.src.database.models import Alert, AlertDetail, AnalysisResult, UploadedFile, IPBlacklist, AnalysisAssignment, User, TrafficLog, IncidentReport
 from backend.src.database.db import db
 from backend.src.ml.preprocess import preprocess_csv 
 from backend.src.ml.predict import predict, get_summary, estimate_model_metrics
@@ -912,3 +911,9 @@ def get_resolved_tickets(user_id, role, severity='all', attack_type='all', sort=
 
     alerts = query.limit(100).all()
     return [a.to_dict() for a in alerts]
+
+
+# for the incident report
+def get_all_incident_reports():
+    reports = IncidentReport.query.order_by(IncidentReport.submitted_at.desc()).all()
+    return [r.to_dict() for r in reports]
