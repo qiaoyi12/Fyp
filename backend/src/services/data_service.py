@@ -914,6 +914,13 @@ def get_resolved_tickets(user_id, role, severity='all', attack_type='all', sort=
 
 
 # for the incident report
+# ── INCIDENT REPORTS (ADMIN VIEW) ──────────────────────────────
 def get_all_incident_reports():
     reports = IncidentReport.query.order_by(IncidentReport.submitted_at.desc()).all()
-    return [r.to_dict() for r in reports]
+    result = []
+    for r in reports:
+        analyst = User.query.get(r.analyst_id)
+        d = r.to_dict()
+        d['submitted_by'] = f"{analyst.username}({analyst.role})" if analyst else "Unknown"
+        result.append(d)
+    return result

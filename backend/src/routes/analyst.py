@@ -8,7 +8,7 @@ from flask import Blueprint, render_template, request, jsonify, session, redirec
 from functools import wraps
 from agenticAI.analyst_agent import generate_incident_report
 from backend.src.database.db import db
-from backend.src.database.models import Alert, AlertDetail, IncidentReport
+from backend.src.database.models import Alert, AlertDetail, IncidentReport, User
 
 analyst_bp = Blueprint('analyst', __name__)
 
