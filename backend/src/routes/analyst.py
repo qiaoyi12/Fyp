@@ -1,12 +1,14 @@
 # ─── Analyst Agent Routes (FED) ───────────────────────────────────────────────
 # Flask blueprint for the Analyst Agent feature.
-# Connects the agenticAI/analyst_agent.py logic to the web interface.
+# Uses real Alert and AlertDetail data from the database.
 # Author: FED role
 # NOTE TO TEAM: Do not modify this file — it is owned by the FED role.
 
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from functools import wraps
 from agenticAI.analyst_agent import generate_incident_report
+from backend.src.database.db import db
+from backend.src.database.models import Alert, AlertDetail, IncidentReport
 
 analyst_bp = Blueprint('analyst', __name__)
 
@@ -14,28 +16,73 @@ analyst_bp = Blueprint('analyst', __name__)
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'user_id' not in session and 'user' not in session:
+        if 'user' not in session:
             return redirect(url_for('pages.login'))
         return f(*args, **kwargs)
     return decorated
+
+# ─── Helper — convert real Alert DB object to dict for the agent ───────────────
+def alert_to_dict(alert):
+    # Handle both real Alert DB objects and plain dicts
+    if isinstance(alert, dict):
+        return alert
+
+    return {
+        'id':          alert.id,
+        'description': f"{alert.prediction} detected on port {alert.dest_port}",
+        'severity':    alert.severity,
+        'source':      alert.source_ip or 'Unknown',
+        'destination': f"{alert.dest_ip}:{alert.dest_port}" if alert.dest_ip else f"Port {alert.dest_port}",
+        'timestamp':   alert.created_at.strftime('%Y-%m-%d %H:%M:%S SGT'),
+        'type':        alert.prediction,
+        'confidence':  round(float(alert.confidence), 1) if alert.confidence else 0,
+        'time':        alert.created_at.strftime('%H:%M'),
+        'date':        alert.created_at.strftime('%Y-%m-%d'),
+        'raw_log': (
+            f"[{alert.created_at.strftime('%Y-%m-%d %H:%M:%S')}] "
+            f"Alert ID: {alert.id} | "
+            f"Prediction: {alert.prediction} | "
+            f"Severity: {alert.severity.upper()} | "
+            f"Source IP: {alert.source_ip or 'Unknown'} | "
+            f"Dest IP: {alert.dest_ip or 'Unknown'} | "
+            f"Dest Port: {alert.dest_port} | "
+            f"Confidence: {round(float(alert.confidence), 1) if alert.confidence else 0}% | "
+            f"Flow Packets/s: {alert.flow_pkts_s} | "
+            f"XGB Vote: {alert.xgb_vote} | "
+            f"RF Vote: {alert.rf_vote} | "
+            f"Tag: {alert.tag}"
+        ),
+        'action': (
+            f"Investigate {alert.prediction} from {alert.source_ip or 'Unknown'}. "
+            f"Check port {alert.dest_port} activity and review related alerts from this IP."
+        )
+    }
 
 # ─── Report page ──────────────────────────────────────────────────────────────
 @analyst_bp.route('/report/<int:alert_id>')
 @login_required
 def report(alert_id):
-    # NOTE TO TEAM: Replace get_mock_alert() with real DB query when ready
-    alert = get_mock_alert(alert_id)
-    all_alerts = get_mock_alerts()
+    # ── Get real alert from DB ─────────────────────────────────────────────────
+    alert = Alert.query.get_or_404(alert_id)
 
-    related_alerts = [
-        a for a in all_alerts
-        if a['source'] == alert['source'] and a['id'] != alert_id
-    ]
+    # ── Cross-reference — find other alerts from same source IP ───────────────
+    related_alerts = []
+    if alert.source_ip:
+        related_alerts = (
+            Alert.query
+            .filter(Alert.source_ip == alert.source_ip, Alert.id != alert_id)
+            .order_by(Alert.created_at.desc())
+            .limit(5)
+            .all()
+        )
+
+    alert_dict   = alert_to_dict(alert)
+    related_list = [alert_to_dict(a) for a in related_alerts]
 
     return render_template('report.html',
-        alert=alert,
-        related_alerts=related_alerts,
-        user=session.get('user', session.get('username', 'Analyst')),
+        alert=alert_dict,
+        related_alerts=related_list,
+        user=session.get('user', 'Analyst'),
         role=session.get('role', 'analyst')
     )
 
@@ -44,62 +91,63 @@ def report(alert_id):
 @login_required
 def generate_report(alert_id):
     try:
-        # NOTE TO TEAM: Replace with real DB query when BED is ready
-        alert      = get_mock_alert(alert_id)
-        all_alerts = get_mock_alerts()
+        # ── Get real alert from DB ─────────────────────────────────────────────
+        alert = Alert.query.get_or_404(alert_id)
 
-        report_content, related_alerts = generate_incident_report(alert, all_alerts)
+        # ── Cross-reference — find other alerts from same source IP ───────────
+        related_alerts = []
+        if alert.source_ip:
+            related_alerts = (
+                Alert.query
+                .filter(Alert.source_ip == alert.source_ip, Alert.id != alert_id)
+                .order_by(Alert.created_at.desc())
+                .limit(5)
+                .all()
+            )
+
+        alert_dict   = alert_to_dict(alert)
+        related_list = [alert_to_dict(a) for a in related_alerts]
+
+        # ── Generate report using OpenAI ───────────────────────────────────────
+        report_content, _ = generate_incident_report(alert_dict, related_list)
         return jsonify({'report': report_content, 'error': None})
 
     except Exception as e:
+        import traceback
+        print('=== ANALYST AGENT ERROR ===')
+        print(traceback.format_exc())
+        print('===========================')
         return jsonify({'report': None, 'error': str(e)}), 500
 
-# ─── Submit report endpoint ───────────────────────────────────────────────────
+# ─── Submit report — saves to IncidentReport table ────────────────────────────
 @analyst_bp.route('/report/<int:alert_id>/submit', methods=['POST'])
 @login_required
 def submit_report(alert_id):
-    data           = request.get_json()
-    report_content = data.get('report', '')
+    try:
+        data           = request.get_json()
+        report_content = data.get('report', '')
 
-    report = IncidentReport(
-        alert_id=alert_id,
-        analyst_id=session['user_id'],
-        content=report_content,
-    )
-    db.session.add(report)
-    db.session.commit()
+        if not report_content.strip():
+            return jsonify({'success': False, 'error': 'Report content is empty.'}), 400
 
-    return jsonify({
-        'success': True,
-        'message': f'Report for Alert #{alert_id} submitted to admin successfully.'
-    })
-# ─── Mock data (FED placeholder — replace with BED DB queries) ────────────────
-def get_mock_alerts():
-    return [
-        {'id': 1,  'severity': 'high',   'description': 'SQL Injection Attempt — prod-db-01',  'source': '192.168.4.207', 'time': '14:17', 'type': 'SQL Injection',        'date': '2026-04-28'},
-        {'id': 2,  'severity': 'high',   'description': 'SSH Brute Force Attack Detected',      'source': '10.0.4.88',     'time': '13:52', 'type': 'Brute Force',          'date': '2026-04-28'},
-        {'id': 3,  'severity': 'high',   'description': 'Lateral Port Scan — /24 Subnet',       'source': '172.16.0.44',   'time': '13:41', 'type': 'Port Scan',            'date': '2026-04-28'},
-        {'id': 4,  'severity': 'medium', 'description': 'Unusual Outbound Data Transfer',        'source': '10.0.1.33',     'time': '13:20', 'type': 'Data Exfiltration',    'date': '2026-04-28'},
-        {'id': 5,  'severity': 'medium', 'description': 'Repeated Authentication Failures ×47', 'source': '192.168.1.12',  'time': '12:58', 'type': 'Brute Force',          'date': '2026-04-28'},
-        {'id': 6,  'severity': 'medium', 'description': 'Privilege Escalation — sudo abuse',    'source': '10.0.2.7',      'time': '12:30', 'type': 'Privilege Escalation', 'date': '2026-04-28'},
-        {'id': 7,  'severity': 'low',    'description': 'Deprecated TLS 1.0 Handshake',         'source': '10.0.5.2',      'time': '11:45', 'type': 'Misconfiguration',     'date': '2026-04-27'},
-        {'id': 8,  'severity': 'low',    'description': 'DNS Lookup Anomaly — unusual pattern', 'source': '192.168.3.9',   'time': '11:12', 'type': 'DNS Anomaly',          'date': '2026-04-27'},
-        {'id': 9,  'severity': 'high',   'description': 'Malware Beacon Detected',               'source': '10.0.3.15',     'time': '10:44', 'type': 'Malware',              'date': '2026-04-27'},
-        {'id': 10, 'severity': 'medium', 'description': 'Suspicious Login — unusual location',  'source': '10.0.1.99',     'time': '10:20', 'type': 'Brute Force',          'date': '2026-04-26'},
-        {'id': 11, 'severity': 'high',   'description': 'Ransomware Activity Detected',          'source': '10.0.2.44',     'time': '09:55', 'type': 'Malware',              'date': '2026-04-26'},
-        {'id': 12, 'severity': 'low',    'description': 'Unencrypted HTTP Traffic',              'source': '10.0.4.12',     'time': '09:30', 'type': 'Misconfiguration',     'date': '2026-04-25'},
-    ]
+        # ── Save to IncidentReport table ───────────────────────────────────────
+        new_report = IncidentReport(
+            alert_id   = alert_id,
+            analyst_id = session['user_id'],
+            content    = report_content
+        )
+        db.session.add(new_report)
+        db.session.commit()
 
-def get_mock_alert(alert_id):
-    return {
-        'id': alert_id,
-        'severity': 'high',
-        'description': 'SQL Injection Attempt Detected',
-        'source': '192.168.4.207',
-        'destination': 'prod-db-01 / Port 3306',
-        'timestamp': '2026-04-28 14:17:03 SGT',
-        'type': 'SQL Injection · SQLI-07',
-        'confidence': 94,
-        'raw_log': '[2026-04-28 14:17:03] WARN auth-service: Unusual query pattern detected\nPOST /api/users/login HTTP/1.1\nPayload: username=\' OR \'1\'=\'1\'; DROP TABLE users;--\nResponse: 403 Forbidden · WAF rule SQLI-07\nSession: 0xFA2C19 · Duration: 0.34s',
-        'action': 'Block source IP 192.168.4.207 at firewall level immediately. Escalate to Tier 2 analyst for forensic review of session 0xFA2C19. Audit all requests from this host in the past 24 hours.'
-    }
+        return jsonify({
+            'success': True,
+            'message': f'Report for Alert #{alert_id} saved and submitted to admin successfully.'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        print('=== SUBMIT REPORT ERROR ===')
+        print(traceback.format_exc())
+        print('===========================')
+        return jsonify({'success': False, 'error': str(e)}), 500
