@@ -398,6 +398,7 @@ def manage_analysts_set_level():
 # for manager page ( neeed to change to manager_required later )
 @pages_bp.route('/assign-analyst', methods=['GET'])
 @login_required
+@manager_required
 def assign_analyst():
     analyses = data_service.get_analyses_for_manager_assignment(session['user_id'])
     analysts = data_service.get_all_analysts()
@@ -410,33 +411,38 @@ def assign_analyst():
 
 
 @pages_bp.route('/assign-analyst', methods=['POST'])
-@login_required
+@manager_required
 def assign_analyst_submit():
     analysis_id = request.form.get('analysis_id')
     analyst_ids = request.form.getlist('analyst_ids')
     if not analysis_id or not analyst_ids:
         return redirect(url_for('pages.assign_analyst', error='Please select an analysis and at least one analyst.'))
     for analyst_id in analyst_ids:
-        data_service.assign_to_analyst(
+        ok = data_service.assign_to_analyst(
             analysis_id=int(analysis_id),
             analyst_id=int(analyst_id),
             assigned_by=session['user_id']
         )
+        if not ok:
+            return redirect(url_for('pages.assign_analyst', error='This analysis is not assigned to you.'))
     return redirect(url_for('pages.assign_analyst', message='Analysis successfully assigned to analyst(s).'))
 
 
+
 @pages_bp.route('/assign-analyst/remove', methods=['POST'])
-@login_required
+@manager_required
 def unassign_analyst():
     analysis_id = request.form.get('analysis_id')
     analyst_id = request.form.get('analyst_id')
     if analysis_id and analyst_id:
-        data_service.remove_assignment_analyst(int(analysis_id), int(analyst_id))
+        data_service.remove_assignment_analyst(int(analysis_id), int(analyst_id), manager_id=session['user_id'])
     return redirect(url_for('pages.assign_analyst'))
+
 
 
 @pages_bp.route('/assign-analyst/auto', methods=['POST'])
 @login_required
+@manager_required
 def auto_assign_analyst():
     analysis_id = request.form.get('analysis_id')
     if not analysis_id:

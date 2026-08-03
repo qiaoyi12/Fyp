@@ -206,11 +206,13 @@ class AlertDetail(db.Model):
 
     flow_bytes_s = db.Column(db.Float)
 
+    total_fwd_packets = db.Column(db.Integer)
     total_backward_packets = db.Column(db.Integer)
 
     packet_length_mean = db.Column(db.Float)
     average_packet_size = db.Column(db.Float)
 
+    syn_flag_count = db.Column(db.Integer)
     ack_flag_count = db.Column(db.Integer)
     psh_flag_count = db.Column(db.Integer)
 

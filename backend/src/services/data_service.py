@@ -320,9 +320,11 @@ def run_analysis(file_ids, user_id):
         detail = AlertDetail(
                 alert_id=alert.id,
                 flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
+                total_fwd_packets=int(raw_row.get('Total Fwd Packets', 0)),
                 total_backward_packets=int(row_data['Total Bwd packets']),
                 packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
                 average_packet_size=round(float(row_data['Average Packet Size']), 2),
+                syn_flag_count=int(raw_row.get('SYN Flag Count', 0)),
                 ack_flag_count=int(row_data['ACK Flag Count']),
                 psh_flag_count=int(row_data['PSH Flag Count']),
                 init_win_bytes_forward=int(row_data['FWD Init Win Bytes']),
@@ -374,12 +376,84 @@ def get_alert_detail(user_id, role, alert_id):
         "detail": alert.detail
     }
 
+RESOLVED_TAG = 'Resolved'
+TICKETS_PER_STAFF_CAP = 5
+SEVERITY_RANK = {'high': 0, 'medium': 1, 'normal': 2}
+
+
+def get_open_ticket_count(analyst_id):
+    """
+    Number of tickets currently assigned to this analyst that are NOT
+    yet resolved. This defines their "open workload" - the cap of 5 is
+    now an ongoing 'max 5 open at once' limit, not a one-time batch cap.
+    """
+    return Alert.query.filter(
+        Alert.assigned_analyst_id == analyst_id,
+        Alert.tag != RESOLVED_TAG,
+    ).count()
+
+
+def get_unassigned_ticket_pool():
+    """
+    Every unassigned ticket system-wide (not scoped to one analysis),
+    sorted by severity (high first) then oldest first - the priority
+    order used when refilling an analyst's freed-up capacity.
+    """
+    tickets = Alert.query.filter_by(assigned_analyst_id=None).all()
+    tickets.sort(key=lambda a: (SEVERITY_RANK.get(a.severity, 99), a.created_at))
+    return tickets
+
+
+def replenish_analyst(analyst_id):
+    """
+    Called right after an analyst resolves a ticket. Fills their freed-up
+    capacity (up to TICKETS_PER_STAFF_CAP open tickets total) from the
+    system-wide unassigned pool, oldest/highest-severity first.
+
+    Deliberately rule-based, no LLM call: the decision here (oldest,
+    highest-severity ticket first) is unambiguous, so there's no benefit
+    to an agent call - only added latency and cost. The agent is reserved
+    for the initial batch routing decision, where genuine judgment
+    (severity vs seniority tradeoffs) is actually needed.
+    """
+    open_count = get_open_ticket_count(analyst_id)
+    free_slots = TICKETS_PER_STAFF_CAP - open_count
+    if free_slots <= 0:
+        return {"replenished_count": 0}
+
+    pool = get_unassigned_ticket_pool()
+    to_assign = pool[:free_slots]
+
+    # imported here (not at top of file) to avoid a circular import - this
+    # module is part of the backend package, and assignment_tools needs
+    # models from that same package
+    from agenticAI.assignment_tools import assign_ticket  # pylint: disable=import-outside-toplevel
+
+    replenished_count = 0
+    for ticket in to_assign:
+        outcome = assign_ticket(
+            ticket_id=ticket.id,
+            staff_id=analyst_id,
+            reason=(
+                f"Auto-assigned to fill freed capacity: {ticket.severity} severity "
+                f"{ticket.prediction} ticket, oldest unassigned in the system-wide queue."
+            ),
+        )
+        if outcome["success"]:
+            replenished_count += 1
+
+    return {"replenished_count": replenished_count}
+
+
 def update_alert_tag(alert_id, tag):
     alert = Alert.query.get(alert_id)
 
     if alert:
         alert.tag = tag
         db.session.commit()
+
+        if tag == 'Resolved' and alert.assigned_analyst_id:
+            replenish_analyst(alert.assigned_analyst_id)
 
 def update_alert_remarks(alert_id, remarks):
     alert = Alert.query.get(alert_id)
@@ -491,16 +565,21 @@ def create_alert_from_traffic_log(traffic_log):
         dest_port=int(row_data['Dst Port']),
         dest_ip=str(raw_row.get('Dst IP', 'Unknown')),
         source_ip=str(raw_row.get('Src IP', 'Unknown')),
+        flow_duration=round(float(raw_row.get('Flow Duration', 0)), 2),
+        flow_pkts_s=round(float(raw_row.get('Flow Packets/s', 0)), 2),
     )
+    
     db.session.add(alert)
     db.session.flush()   # generates alert.id
 
     detail = AlertDetail(
         alert_id=alert.id,
         flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
+        total_fwd_packets=int(raw_row.get('Total Fwd Packets', 0)),
         total_backward_packets=int(row_data['Total Bwd packets']),
         packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
         average_packet_size=round(float(row_data['Average Packet Size']), 2),
+        syn_flag_count=int(raw_row.get('SYN Flag Count', 0)),
         ack_flag_count=int(row_data['ACK Flag Count']),
         psh_flag_count=int(row_data['PSH Flag Count']),
         init_win_bytes_forward=int(row_data['FWD Init Win Bytes']),
@@ -674,7 +753,14 @@ def assign_to_analyst(analysis_id, analyst_id, assigned_by):
     """
     Manager assigns an analysis to an analyst.
     Adds a new AnalysisAssignment row for this analyst if one doesn't already exist.
+      Only allowed if this analysis is actually assigned to this manager -
+    prevents a manager from assigning analyses they don't own just by
+    guessing an analysis_id. Returns False if the ownership check fails.
     """
+    owned_ids = _get_assigned_analysis_ids(assigned_by, 'manager')
+    if analysis_id not in owned_ids:
+        return False
+
     existing_ids = {
         a.analyst_id for a in
         AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
@@ -687,9 +773,13 @@ def assign_to_analyst(analysis_id, analyst_id, assigned_by):
             assigned_by=assigned_by,
         ))
     db.session.commit()
+    return True
 
 
-def remove_assignment_analyst(analysis_id, analyst_id):
+def remove_assignment_analyst(analysis_id, analyst_id, manager_id):
+    owned_ids = _get_assigned_analysis_ids(manager_id, 'manager')
+    if analysis_id not in owned_ids:
+        return
     entry = AnalysisAssignment.query.filter_by(
         analysis_id=analysis_id, analyst_id=analyst_id
     ).first()
