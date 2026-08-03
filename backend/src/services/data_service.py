@@ -338,6 +338,9 @@ def run_analysis(file_ids, user_id):
 
     db.session.commit()
 
+    from agenticAI.assignment_agent import run_assignment_for_batch  # local import avoids circular import
+    run_assignment_for_batch(record.id)
+
     return record, None, metrics
 
 # ── ALERTS ────────────────────────────────────────────────────
@@ -443,6 +446,15 @@ def replenish_analyst(analyst_id):
             replenished_count += 1
 
     return {"replenished_count": replenished_count}
+
+
+# def update_alert_tag(alert_id, tag):
+#     alert = Alert.query.get(alert_id)
+
+#     if alert:
+#         alert.tag = tag
+#         db.session.commit()
+
 
 
 def update_alert_tag(alert_id, tag):
