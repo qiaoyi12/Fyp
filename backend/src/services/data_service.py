@@ -1,4 +1,4 @@
-# Handles uploaded data, analysis, alerts, logs, and report summary.
+# Handles all the backend logic data
 import json
 import time
 import pandas as pd
@@ -89,7 +89,7 @@ def get_dashboard_data(user_id, role, attack_type='all'):
         'high_count':     latest.high_count,
         'medium_count':   latest.medium_count,
         'low_count':      latest.normal_count,
-        'model_accuracy': 'N/A',
+        'model_accuracy': f"{latest.model_accuracy}%" if latest.model_accuracy is not None else 'N/A',
         'response_time':  'N/A',
         'uptime':         '99.8%',
         'total_threat_types': sum(1 for item in threat_distribution if item['pct'] > 0),
@@ -138,8 +138,8 @@ def _resolve_uploads(file_ids, user_id):
 
     return uploads
 
-
-# to make sure that the traffic is shown if its not stored in db
+# ── TRAFFICLOGS ──────────────────────────────────────────────────
+# used for query for top attacking IPS
 def _traffic_log_query(user_id, role):
     if role in ('analyst', 'manager'):
         analysis_ids = _get_assigned_analysis_ids(user_id, role)
@@ -151,7 +151,7 @@ def _traffic_log_query(user_id, role):
 def get_traffic_log_count_by_ip(user_id, role, ip):
     return _traffic_log_query(user_id, role).filter_by(source_ip=ip).count()
 
-#might not need this delete later?
+# to make sure that all the traffic is stored in the db
 def _bulk_insert_traffic_logs(record, combined_results, frame_lookup, user_id):
     """Persist a lightweight record of every processed row (not just the capped alert subset)."""
     df = pd.DataFrame(combined_results)
@@ -184,13 +184,14 @@ def _bulk_insert_traffic_logs(record, combined_results, frame_lookup, user_id):
                 'confidence': float(confidences[i]),
             })
 
-    # Insert in chunks to avoid one giant transaction
+    # Insert in chunks 
     CHUNK = 20000
     for i in range(0, len(traffic_log_rows), CHUNK):
         db.session.bulk_insert_mappings(TrafficLog, traffic_log_rows[i:i+CHUNK])
     db.session.commit()
     
 
+# the main analysis that run the whole csv file 
 def run_analysis(file_ids, user_id):
     uploads = _resolve_uploads(file_ids, user_id)
     if not uploads:
@@ -241,6 +242,7 @@ def run_analysis(file_ids, user_id):
         bot=by_label['Bot/Patator'], rare=by_label['Rare/Others'],
         high_count=by_sev['high'], medium_count=by_sev['medium'], normal_count=by_sev['normal'],
         file_ids=json.dumps([u.id for u in uploads]),
+        model_accuracy=metrics.get('accuracy'),
     )
     db.session.add(record)
     db.session.commit()
@@ -615,7 +617,15 @@ def get_upload_history(user_id, limit=10):
         'detail': f'Processed · {u.row_count} rows'
     } for u in uploads]
 
-
+SEVERITY_MAP = {
+    'BENIGN':      'normal',
+    'Web Attack':  'high',
+    'DoS':         'high',
+    'DDoS':        'high',
+    'PortScan':    'medium',
+    'Bot/Patator': 'high',
+    'Rare/Others': 'medium'
+}
 # ── REPORT ANALYSIS ───────────────────────────────────────────
 def get_report_data(user_id, role, date_from=None, date_to=None, top_n=5):
     query = _analysis_query(user_id, role)
@@ -649,7 +659,7 @@ def get_report_data(user_id, role, date_from=None, date_to=None, top_n=5):
         top_type = max(entry['types'], key=entry['types'].get)
         top_ips.append({
             'ip': ip, 'count': entry['count'], 'top_attack_type': top_type,
-            'severity': entry['max_severity'], 'is_blacklisted': ip in blacklisted_ips,
+            'severity': SEVERITY_MAP.get(top_type, 'normal'), 'is_blacklisted': ip in blacklisted_ips,
         })
     top_ips.sort(key=lambda x: x['count'], reverse=True)
 

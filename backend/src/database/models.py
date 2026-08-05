@@ -89,6 +89,8 @@ class AnalysisResult(db.Model):
     rare        = db.Column(db.Integer, default=0)
     analysed_at = db.Column(db.DateTime, default=datetime.utcnow)
     ip_stats = db.Column(db.Text)  # JSON-encoded per-IP attack counts for the full upload
+    model_accuracy = db.Column(db.Float) 
+    
 
     assignments = db.relationship('AnalysisAssignment', backref='analysis', lazy=True)
 

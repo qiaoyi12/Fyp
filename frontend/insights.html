@@ -55,7 +55,7 @@
         {% if day_total %}
         <div class="stack-seg high" data-height="{{ point.high / day_total * 100 }}" title="High: {{ point.high }}"></div>
         <div class="stack-seg medium" data-height="{{ point.medium / day_total * 100 }}" title="Medium: {{ point.medium }}"></div>
-        <div class="stack-seg normal" data-height="{{ point.normal / day_total * 100 }}" title="Normal: {{ point.normal }}"></div>
+        <div class="stack-seg normal" data-height="{{ point.normal / day_total * 100 }}" title="BENIGN: {{ point.normal }}"></div>
         {% endif %}
       </div>
       <div class="trend-bar-label">{{ point.date[-2:] }}</div>
@@ -65,7 +65,7 @@
   <div class="legend-row">
     <span class="legend-dot high"></span> High
     <span class="legend-dot medium"></span> Medium
-    <span class="legend-dot normal"></span> Normal
+    <span class="legend-dot normal"></span> BENIGN
   </div>
 </div>
 
@@ -84,26 +84,7 @@
   </table>
 </div>
 
-<!-- TOP ATTACKING IPS -->
-<div class="chart-card">
-  <div class="chart-title">Top Attacking IPs (7 Days)</div>
-  <table class="overview-table">
-    <thead>
-      <tr><th>IP</th><th>Count</th><th>Max Severity</th></tr>
-    </thead>
-    <tbody>
-      {% for ip in overview.top_ips %}
-      <tr>
-        <td>{{ ip.ip }}</td>
-        <td>{{ ip.count }}</td>
-        <td><span class="sev-badge sev-{{ ip.max_severity }}">{{ ip.max_severity.upper() }}</span></td>
-      </tr>
-      {% else %}
-      <tr><td colspan="3">No IP data for this period.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+
 
 <!-- ANALYSIS RUN HISTORY -->
 <div class="chart-card">

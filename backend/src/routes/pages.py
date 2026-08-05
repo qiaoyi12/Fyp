@@ -67,6 +67,12 @@ def register():
 
         if not username or not email or not password:
             error = 'All fields are required.'
+        elif not (3 <= len(username) <= 20):
+            error = 'Username must be between 3 and 20 characters.'
+        elif not username.isalnum():
+            error = 'Username must contain only letters and numbers.'
+        elif not (8 <= len(password) <= 72):
+            error = 'Password must be between 8 and 72 characters.'
         elif password != confirm:
             error = 'Passwords do not match.'
         elif User.query.filter_by(username=username).first():
@@ -170,21 +176,6 @@ def dashboard():
         no_assignments=no_assignments,
         attack_type=attack_type,
         user=session['user'], role=session['role'])
-
-# for alert feed and ticket details
-# @pages_bp.route('/alerts')
-# @login_required
-# def alert_feed():
-#     severity = request.args.get('severity', 'all')
-#     attack_type = request.args.get('type', 'all')
-#     alerts = data_service.get_alert_feed(
-#         session['user_id'], session['role'], severity, attack_type
-#     )
-#     no_assignments = data_service.has_no_assignments(session['user_id'], session['role'])
-#     return render_template('alert_feed.html',
-#         alerts=alerts, severity=severity, attack_type=attack_type,
-#         no_assignments=no_assignments,
-#         user=session['user'], role=session['role'])
 
 @pages_bp.route('/alerts')
 @login_required

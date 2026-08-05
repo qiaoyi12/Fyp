@@ -33,7 +33,7 @@
         <a href="/alerts" class="nav-item {% if active_page == 'alerts' %}active{% endif %}">
           <div class="nav-dot"></div>
           Alert Feed
-          <span class="nav-badge">{{ high_alert_count | default(7) }}</span>
+          <span class="nav-badge">{{ high_alert_count | default("!") }}</span>
         </a>
 
         <a href="/logs" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
