@@ -62,8 +62,8 @@ def build_distribution_plan(
     juniors = [s for s in staff if s.get("level") != "senior"]
 
     assign_block(high_severity_tickets, seniors)
-    assign_block(high_severity_tickets, juniors)
-    assign_block(other_tickets, staff)
+    assign_block(high_severity_tickets, juniors)  # emergency overflow once seniors are full
+    assign_block(other_tickets, juniors)  # medium/normal go ONLY to juniors - seniors never receive these
 
     assigned_ids = {a["ticket_id"] for a in assignments}
     unassigned = [t for t in tickets if t["ticket_id"] not in assigned_ids]
@@ -80,12 +80,20 @@ def validate_agent_plan(
     Checks the agent's proposed assignments against hard constraints that
     must never be violated. Returns (is_valid, reason_if_invalid).
 
-    Deliberately does NOT check the severity/seniority preference - that
-    soft judgment call now belongs to the agent. Only checks what would
-    actually break the system if wrong.
+    Includes one severity/seniority constraint as a HARD check: senior
+    analysts may only receive high-severity tickets. This was upgraded
+    from a soft preference to a validated constraint because "seniors
+    receive ONLY high severity" is a strict business rule, not a
+    suggestion - and past testing showed the agent cannot be trusted to
+    honour strict rules reliably on its own (see design history).
+    Junior analysts may still receive high-severity overflow once every
+    senior is at capacity - that direction is intentionally NOT enforced
+    here, since it's the sanctioned emergency-overflow path.
     """
     valid_ticket_ids = {t["ticket_id"] for t in tickets}
     valid_staff_ids = {s["staff_id"] for s in staff}
+    ticket_severity = {t["ticket_id"]: t.get("severity") for t in tickets}
+    staff_level = {s["staff_id"]: s.get("level", "junior") for s in staff}
 
     seen_ticket_ids = set()
     per_staff_count = {s["staff_id"]: 0 for s in staff}
@@ -103,11 +111,33 @@ def validate_agent_plan(
             return False, f"Agent invented a staff_id that doesn't exist: {staff_id}"
         if ticket_id in seen_ticket_ids:
             return False, f"Ticket {ticket_id} assigned more than once."
+        if staff_level[staff_id] == "senior" and ticket_severity[ticket_id] != HIGH_SEVERITY:
+            return False, (
+                f"Senior analyst {staff_id} was assigned a non-high-severity ticket "
+                f"({ticket_id}, severity={ticket_severity[ticket_id]}) - seniors may only receive high-severity tickets."
+            )
 
         seen_ticket_ids.add(ticket_id)
         per_staff_count[staff_id] += 1
 
         if per_staff_count[staff_id] > TICKETS_PER_STAFF:
             return False, f"Staff {staff_id} exceeded the {TICKETS_PER_STAFF}-ticket cap."
+
+    # second pass: a junior may only receive a high-severity ticket if
+    # EVERY senior is already fully at capacity in this proposal. This
+    # can't be checked item-by-item above since it depends on the final
+    # tally across the whole plan, not just the one item being checked.
+    senior_ids = {s["staff_id"] for s in staff if s.get("level") == "senior"}
+    if senior_ids:
+        for item in proposed:
+            ticket_id = item["ticket_id"]
+            staff_id = item["staff_id"]
+            if staff_level[staff_id] != "senior" and ticket_severity[ticket_id] == HIGH_SEVERITY:
+                if any(per_staff_count[sid] < TICKETS_PER_STAFF for sid in senior_ids):
+                    return False, (
+                        f"Junior {staff_id} was given a high-severity ticket ({ticket_id}) "
+                        f"while a senior analyst still had free capacity - "
+                        f"seniors must be fully utilised before juniors receive high-severity overflow."
+                    )
 
     return True, ""

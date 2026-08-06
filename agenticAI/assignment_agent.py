@@ -34,9 +34,17 @@ and STAFF (a list of {{staff_id, name, level}}, level is "junior" or "senior").
 
 Decide which analyst should handle each ticket. Guidelines:
 - Each analyst can take at most {TICKETS_PER_STAFF} tickets total.
-- Prefer routing high-severity tickets to senior analysts first; only
-  route a high-severity ticket to a junior once every senior is at
-  capacity. Other severities can go to anyone with remaining capacity.
+- Senior analysts must ONLY receive high-severity tickets. Never assign
+  a senior a medium- or normal-severity ticket. (This is enforced by
+  validation after your response - a plan that breaks this rule will be
+  rejected and a fallback used instead.)
+- Medium- and normal-severity tickets go only to junior analysts.
+- High-severity tickets should go to senior analysts first, and every
+  senior should be filled to capacity before any high-severity ticket
+  goes to a junior. Only once every senior has zero remaining capacity
+  may a junior receive a high-severity ticket. This is also enforced by
+  validation - do not give a junior a high-severity ticket while any
+  senior still has room.
 - You do not have to assign every ticket - if total staff capacity is
   less than the number of tickets, leave the excess out of your response
   entirely (do not invent extra capacity).
