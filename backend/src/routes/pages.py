@@ -8,6 +8,14 @@ from backend.src.services import data_service
 from backend.src.routes.upload import save_upload
 from datetime import datetime
 from flask import flash
+from collections import defaultdict
+from datetime import datetime, timedelta
+
+# Tracks failed attempts per IP
+login_attempts = defaultdict(list)
+
+MAX_ATTEMPTS = 5
+WINDOW_MINUTES = 1
 
 pages_bp = Blueprint('pages', __name__)
 

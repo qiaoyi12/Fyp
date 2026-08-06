@@ -16,7 +16,7 @@
     <div class="m-value red" style="font-size:16px">{{ overview.top_attack_type }}</div>
   </div>
   <div class="metric-card">
-    <div class="m-label">increase attac %</div>
+    <div class="m-label">increase attack %</div>
     <div class="m-value {% if overview.pct_change is none %}blue{% elif overview.pct_change > 0 %}red{% else %}green{% endif %}" style="font-size:16px">
       {% if overview.pct_change is none %}
         N/A

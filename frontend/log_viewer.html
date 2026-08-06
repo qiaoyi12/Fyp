@@ -18,7 +18,7 @@
   />
   <a href="/logs?search={{ search }}" class="f-btn {% if filter_type == 'all' %}active{% endif %}">All Entries</a>
   <a href="/logs?filter=flagged&search={{ search }}" class="f-btn high {% if filter_type == 'flagged' %}active{% endif %}">Flagged</a>
-  <a href="/logs?filter=normal&search={{ search }}" class="f-btn {% if filter_type == 'normal' %}active{% endif %}">Normal</a>
+  <a href="/logs?filter=normal&search={{ search }}" class="f-btn {% if filter_type == 'normal' %}active{% endif %}">BENIGN</a>
   {% if search %}
     <a href="/logs?filter={{ filter_type }}" class="f-btn clear-filter">✕ Clear Search</a>
   {% endif %}
