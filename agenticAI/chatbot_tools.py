@@ -43,9 +43,7 @@ def get_ticket_context(alert_id, user_id, role):
     evidence = None
     if detail:
         evidence = {
-            "flow_duration_ms": alert.flow_duration,
             "flow_bytes_per_s": detail.flow_bytes_s,
-            "flow_packets_per_s": alert.flow_pkts_s,
             "total_fwd_packets": detail.total_fwd_packets,
             "total_backward_packets": detail.total_backward_packets,
             "packet_length_mean": detail.packet_length_mean,

@@ -47,7 +47,7 @@ def alert_to_dict(alert):
             f"Dest IP: {alert.dest_ip or 'Unknown'} | "
             f"Dest Port: {alert.dest_port} | "
             f"Confidence: {round(float(alert.confidence), 1) if alert.confidence else 0}% | "
-            f"Flow Packets/s: {alert.flow_pkts_s} | "
+            f"Flow Packets/s: {alert.flow_bytes_s} | "
             f"XGB Vote: {alert.xgb_vote} | "
             f"RF Vote: {alert.rf_vote} | "
             f"Tag: {alert.tag}"

@@ -138,8 +138,7 @@ class Alert(db.Model):
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
     # for packet info feature
     dest_port      = db.Column(db.Integer)
-    flow_duration  = db.Column(db.Float)
-    flow_pkts_s    = db.Column(db.Float)
+    flow_bytes_s = db.Column(db.Float)
     source_ip      = db.Column(db.String(45))
     dest_ip        = db.Column(db.String(45))
     tag = db.Column(db.String(30), default="Unreviewed")
@@ -163,11 +162,11 @@ class Alert(db.Model):
 
     def to_dict(self):
         reason = {
-            'PortScan':    f'Port probing on port {self.dest_port} · {self.flow_pkts_s} pkts/s',
-            'DoS':         f'Flood traffic · {self.flow_pkts_s} pkts/s over {self.flow_duration}ms',
-            'DDoS':        f'Distributed flood · {self.flow_pkts_s} pkts/s',
+            'PortScan':    f'Port probing on port {self.dest_port} · {self.flow_bytes_s} bytes/s',
+            'DoS':         f'Flood traffic · {self.flow_bytes_s} bytes/s',
+            'DDoS':        f'Distributed flood · {self.flow_bytes_s} bytes/s',
             'Web Attack':  f'Malicious payload on port {self.dest_port}',
-            'Bot/Patator': f'Automated attack on port {self.dest_port} · {self.flow_pkts_s} pkts/s',
+            'Bot/Patator': f'Automated attack on port {self.dest_port} · {self.flow_bytes_s} bytes/s',
             'Rare/Others': f'Anomalous flow on port {self.dest_port}',
             'BENIGN':      'Normal traffic'
         }.get(self.prediction, 'Unknown pattern')
@@ -181,7 +180,7 @@ class Alert(db.Model):
             'time':        self.created_at.strftime('%H:%M'),
             'created_at':  self.created_at.isoformat(),
             'dest_port':   self.dest_port,
-            'flow_pkts_s': self.flow_pkts_s,
+            'flow_bytes_s': self.flow_bytes_s, # ADD
             'source_ip':   self.source_ip,
             'dest_ip':     self.dest_ip,
             'reason':      reason,

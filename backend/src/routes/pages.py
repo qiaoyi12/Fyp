@@ -108,6 +108,17 @@ def home():
 def login():
     error = None
     if request.method == 'POST':
+        ip = request.remote_addr
+        now = datetime.now()
+
+        # 1. Clean out old attempts outside the window
+        login_attempts[ip] = [t for t in login_attempts[ip] if now - t < timedelta(minutes=WINDOW_MINUTES)]
+
+        # 2. Check lockout BEFORE checking credentials
+        if len(login_attempts[ip]) >= MAX_ATTEMPTS:
+            error = 'Too many failed attempts. Please try again later.'
+            return render_template('login.html', error=error)
+
         username = request.form.get('username')
         password = request.form.get('password')
         role     = request.form.get('role')
@@ -115,16 +126,18 @@ def login():
         user = User.query.filter_by(username=username).first()
         if not user or not user.check_password(password):
             error = 'Invalid username or password.'
+            login_attempts[ip].append(now)   # 3. record the failure
         elif user.role != role:
             error = f'This account is not registered as {role}.'
+            login_attempts[ip].append(now)
         else:
+            login_attempts[ip].clear()       # 4. reset on success
             session['user']    = user.username
             session['role']    = user.role
             session['user_id'] = user.id
             return redirect(url_for('pages.dashboard'))
 
     return render_template('login.html', error=error)
-
 
 @pages_bp.route('/logout')
 def logout():

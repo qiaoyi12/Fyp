@@ -311,8 +311,7 @@ def run_analysis(file_ids, user_id):
             xgb_vote=r['xgb_vote'],
             rf_vote=r['rf_vote'],
             dest_port=int(row_data['Dst Port']),
-            flow_duration=round(float(raw_row.get('Flow Duration', 0)), 2),
-            flow_pkts_s=round(float(raw_row.get('Flow Packets/s', 0)), 2),
+            flow_bytes_s=round(float(raw_row.get('Flow Bytes/s', 0)), 2),
             source_ip=source_ip,
             dest_ip=str(raw_row.get('Dst IP', 'Unknown')),
         )
@@ -579,8 +578,8 @@ def create_alert_from_traffic_log(traffic_log):
         dest_port=int(row_data['Dst Port']),
         dest_ip=str(raw_row.get('Dst IP', 'Unknown')),
         source_ip=str(raw_row.get('Src IP', 'Unknown')),
-        flow_duration=round(float(raw_row.get('Flow Duration', 0)), 2),
-        flow_pkts_s=round(float(raw_row.get('Flow Packets/s', 0)), 2),
+        # CHNAGE THIS
+        flow_bytes_s=round(float(raw_row.get('Flow Bytes/s', 0)), 2),
     )
     
     db.session.add(alert)
@@ -589,7 +588,7 @@ def create_alert_from_traffic_log(traffic_log):
     detail = AlertDetail(
         alert_id=alert.id,
         flow_bytes_s=round(float(row_data['Flow Bytes/s']), 2),
-        total_fwd_packets=int(raw_row.get('Total Fwd Packets', 0)),
+        total_fwd_packets=int(raw_row.get('Total Length of Fwd Packets', 0)),
         total_backward_packets=int(row_data['Total Bwd packets']),
         packet_length_mean=round(float(row_data['Packet Length Mean']), 2),
         average_packet_size=round(float(row_data['Average Packet Size']), 2),
