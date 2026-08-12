@@ -399,12 +399,16 @@ def get_open_ticket_count(analyst_id):
 
 def get_unassigned_ticket_pool():
     """
-    Every unassigned ticket system-wide (not scoped to one analysis),
-    sorted by severity (high first) then oldest first - the priority
-    order used when refilling an analyst's freed-up capacity.
+    Every unassigned ticket system-wide, sorted with 'Needs Action'
+    tagged tickets first (manually flagged as urgent), then by
+    severity (high first), then oldest first.
     """
     tickets = Alert.query.filter_by(assigned_analyst_id=None).all()
-    tickets.sort(key=lambda a: (SEVERITY_RANK.get(a.severity, 99), a.created_at))
+    tickets.sort(key=lambda a: (
+        0 if a.tag == 'Needs Action' else 1,
+        SEVERITY_RANK.get(a.severity, 99),
+        a.created_at,
+    ))
     return tickets
 
 
@@ -449,13 +453,54 @@ def replenish_analyst(analyst_id):
     return {"replenished_count": replenished_count}
 
 
-# def update_alert_tag(alert_id, tag):
-#     alert = Alert.query.get(alert_id)
+def _assign_single_ticket(alert):
+    """
+    Assigns one specific ticket to an eligible analyst, following the
+    same severity/seniority rule as the batch fallback in
+    distribution_plan.py: senior analysts only receive high-severity
+    tickets, and seniors are filled to capacity before a junior can
+    receive a high-severity ticket (emergency overflow).
+    """
+    analysts = User.query.filter_by(role='analyst').all()
+    if not analysts:
+        return
 
-#     if alert:
-#         alert.tag = tag
-#         db.session.commit()
+    from agenticAI.assignment_tools import assign_ticket
 
+    is_high = alert.severity == 'high'
+    seniors = [a for a in analysts if a.level == 'senior']
+    juniors = [a for a in analysts if a.level != 'senior']
+
+    def has_capacity(analyst):
+        return get_open_ticket_count(analyst.id) < TICKETS_PER_STAFF_CAP
+
+    if is_high:
+        # seniors first, most free capacity first
+        candidates = sorted([a for a in seniors if has_capacity(a)],
+                             key=lambda a: get_open_ticket_count(a.id))
+        if not candidates:
+            # emergency overflow: only if every senior is fully at capacity
+            seniors_full = all(not has_capacity(a) for a in seniors) if seniors else True
+            if seniors_full:
+                candidates = sorted([a for a in juniors if has_capacity(a)],
+                                     key=lambda a: get_open_ticket_count(a.id))
+    else:
+        # medium/normal severity goes ONLY to juniors, never seniors
+        candidates = sorted([a for a in juniors if has_capacity(a)],
+                             key=lambda a: get_open_ticket_count(a.id))
+
+    if not candidates:
+        return  # nobody eligible right now - stays unassigned until capacity frees up
+
+    chosen = candidates[0]
+    assign_ticket(
+        ticket_id=alert.id,
+        staff_id=chosen.id,
+        reason=(
+            f"Auto-assigned on 'Needs Action' tag: routed to {chosen.username} "
+            f"({chosen.level} analyst) based on {alert.severity} severity {alert.prediction} activity."
+        ),
+    )
 
 
 def update_alert_tag(alert_id, tag):
@@ -467,6 +512,9 @@ def update_alert_tag(alert_id, tag):
 
         if tag == 'Resolved' and alert.assigned_analyst_id:
             replenish_analyst(alert.assigned_analyst_id)
+
+        elif tag == 'Needs Action' and not alert.assigned_analyst_id:
+            _assign_single_ticket(alert)
 
 def update_alert_remarks(alert_id, remarks):
     alert = Alert.query.get(alert_id)
@@ -797,17 +845,53 @@ def assign_to_analyst(analysis_id, analyst_id, assigned_by):
     return True
 
 
+def remove_assignment_manager(analysis_id, manager_id):
+    entry = AnalysisAssignment.query.filter_by(
+        analysis_id=analysis_id, manager_id=manager_id
+    ).first()
+    if entry:
+        db.session.delete(entry)
+
+        # cascade path 1: clear AI-agent per-ticket assignments on Alert rows
+        Alert.query.filter_by(analysis_id=analysis_id).update({
+            'assigned_analyst_id': None,
+            'assignment_source': None,
+            'assignment_reason': None,
+            'assigned_at': None,
+        })
+
+        # cascade path 2: remove manual manager->analyst AnalysisAssignment rows,
+        # since _alert_query() grants analyst visibility through this table too
+        AnalysisAssignment.query.filter_by(
+            analysis_id=analysis_id
+        ).filter(AnalysisAssignment.analyst_id.isnot(None)).delete()
+
+        db.session.commit()
+
 def remove_assignment_analyst(analysis_id, analyst_id, manager_id):
     owned_ids = _get_assigned_analysis_ids(manager_id, 'manager')
     if analysis_id not in owned_ids:
-        return
+        return False
+
     entry = AnalysisAssignment.query.filter_by(
         analysis_id=analysis_id, analyst_id=analyst_id
     ).first()
     if entry:
         db.session.delete(entry)
-        db.session.commit()
 
+        Alert.query.filter_by(
+            analysis_id=analysis_id,
+            assigned_analyst_id=analyst_id,
+            assignment_source='manual',
+        ).update({
+            'assigned_analyst_id': None,
+            'assignment_source': None,
+            'assignment_reason': None,
+            'assigned_at': None,
+        })
+
+        db.session.commit()
+    return True
 
 def trigger_auto_assignment(analysis_id, manager_id):
     """
@@ -887,13 +971,6 @@ def assign_to_manager(analysis_id, manager_id, assigned_by):
         from agenticAI.assignment_agent import run_assignment_for_batch  # pylint: disable=import-outside-toplevel
         run_assignment_for_batch(analysis_id)
 
-def remove_assignment_manager(analysis_id, manager_id):
-    entry = AnalysisAssignment.query.filter_by(
-        analysis_id=analysis_id, manager_id=manager_id
-    ).first()
-    if entry:
-        db.session.delete(entry)
-        db.session.commit()
 
 
 # to be changed
