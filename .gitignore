@@ -43,4 +43,4 @@ frontend/.vite/
 
 # Windows
 Thumbs.db
-desktop.ini
+desktop.ini.env 
