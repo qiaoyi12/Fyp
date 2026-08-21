@@ -99,7 +99,7 @@ def predict(X):
     rf_conf = np.max(rf_proba, axis=1)
 
     # isolation forest flags rows that look "weird" compared to normal traffic,
-    # even if XGB/RF don't recognise them as a known attack type ( BENIGN )
+    # even if XGB/RF don't recognise them as a known attack type ( BENIGN ) it will escalate the ticket to high
     anomaly_flags = [False] * len(X_scaled)
     if isolation_forest is not None:
         try:

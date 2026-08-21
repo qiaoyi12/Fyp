@@ -19,9 +19,7 @@ class User(db.Model):
     role       = db.Column(db.String(30), nullable=False, default='SOC Analyst')
 
     # analyst seniority tier ('junior' or 'senior'), used to route
-    # higher-severity tickets to more senior analysts. Only meaningful
-    # for role='analyst', but kept on the base table since there's no
-    # per-role subclassing here.
+    # higher-severity tickets to more senior
     level      = db.Column(db.String(20), nullable=False, default='junior')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -180,7 +178,7 @@ class Alert(db.Model):
             'time':        self.created_at.strftime('%H:%M'),
             'created_at':  self.created_at.isoformat(),
             'dest_port':   self.dest_port,
-            'flow_bytes_s': self.flow_bytes_s, # ADD
+            'flow_bytes_s': self.flow_bytes_s, 
             'source_ip':   self.source_ip,
             'dest_ip':     self.dest_ip,
             'reason':      reason,
@@ -225,7 +223,6 @@ class AlertDetail(db.Model):
     bwd_iat_max = db.Column(db.Float)
 
 # top attacking source ip addresses the IT Admin maintains alerts from these IPs
-# get flagged as a blacklist match in the Report Analysis page.
 class IPBlacklist(db.Model):
     __tablename__ = 'ip_blacklist'
 
@@ -240,7 +237,6 @@ class IPBlacklist(db.Model):
             'id': self.id,
             'ip_address': self.ip_address,
             'reason': self.reason,
-            # use this for time now as we dont have the exact time stamp
             'added_at': self.added_at.strftime('%Y-%m-%d %H:%M'),
         }
 

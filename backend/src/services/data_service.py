@@ -71,7 +71,6 @@ def get_dashboard_data(user_id, role, attack_type='all'):
 
     latest = _analysis_query(user_id, role)\
         .order_by(AnalysisResult.analysed_at.desc()).first()
-    # ADD THIS — separate query just for best accuracy
     top_accuracy_result = _analysis_query(user_id, role)\
         .order_by(AnalysisResult.model_accuracy.desc()).first()
     top_accuracy = top_accuracy_result.model_accuracy if top_accuracy_result else None
@@ -188,7 +187,7 @@ def _bulk_insert_traffic_logs(record, combined_results, frame_lookup, user_id):
                 'confidence': float(confidences[i]),
             })
 
-    # Insert in chunks 
+    # Insert in chunks so it run faster 
     CHUNK = 20000
     for i in range(0, len(traffic_log_rows), CHUNK):
         db.session.bulk_insert_mappings(TrafficLog, traffic_log_rows[i:i+CHUNK])
@@ -283,9 +282,9 @@ def run_analysis(file_ids, user_id):
     record.ip_stats = json.dumps(list(ip_counts.values()))
     db.session.commit()
 
-    t0 = time.time()                                                   # ADD
+    t0 = time.time()                                                   
     _bulk_insert_traffic_logs(record, combined_results, frame_lookup, user_id)
-    print(f"[TIMING] bulk_insert_traffic_logs: {time.time()-t0:.2f}s")  # ADD
+    print(f"[TIMING] bulk_insert_traffic_logs: {time.time()-t0:.2f}s")  
 
     TICKETS_PER_TYPE_MAX = 80
 
@@ -294,7 +293,7 @@ def run_analysis(file_ids, user_id):
         selected.extend(sorted(rows, key=lambda x: x['confidence'])[:TICKETS_PER_TYPE_MAX])
     selected.sort(key=lambda x: x['row'])
 
-    t0 = time.time()                                                   # ADD
+    t0 = time.time()                                                   
     for ticket_no, r in enumerate(selected, start=1):
         X_frame, raw_frame = frame_lookup[r['source_upload_id']]
         row_data = X_frame.iloc[r['source_row']]
@@ -433,10 +432,8 @@ def replenish_analyst(analyst_id):
     pool = get_unassigned_ticket_pool()
     to_assign = pool[:free_slots]
 
-    # imported here (not at top of file) to avoid a circular import - this
-    # module is part of the backend package, and assignment_tools needs
-    # models from that same package
-    from agenticAI.assignment_tools import assign_ticket  # pylint: disable=import-outside-toplevel
+
+    from agenticAI.assignment_tools import assign_ticket 
 
     replenished_count = 0
     for ticket in to_assign:
@@ -548,7 +545,7 @@ def get_logs(user_id, role, filter_type, search='', page=1, per_page=80):
             'protocol':    'TCP',
             'severity':    a.severity,
             'flagged':     a.severity in ('high', 'medium'),
-            'alert_id':    a.id,   # already a real alert, always show "View Alert"
+            'alert_id':    a.id,   # for presampled alert, always show "View Alert"
             'ticket_id':   a.ticket_id,
         } for a in alerts_page]
 
@@ -973,29 +970,6 @@ def assign_to_manager(analysis_id, manager_id, assigned_by):
         run_assignment_for_batch(analysis_id)
 
 
-
-# to be changed
-# def assign_analysis(analysis_id, analyst_ids, assigned_by):
-#     existing_ids = {
-#         a.analyst_id for a in 
-#         AnalysisAssignment.query.filter_by(analysis_id=analysis_id).all()
-#     }
-#     for analyst_id in analyst_ids:
-#         if analyst_id not in existing_ids:
-#             db.session.add(AnalysisAssignment(
-#                 analysis_id=analysis_id,
-#                 analyst_id=analyst_id,
-#                 assigned_by=assigned_by,
-#             ))
-#     db.session.commit()
-
-# def remove_assignment(analysis_id, analyst_id):
-#     entry = AnalysisAssignment.query.filter_by(
-#         analysis_id=analysis_id, analyst_id=analyst_id
-#     ).first()
-#     if entry:
-#         db.session.delete(entry)
-#         db.session.commit()
 
 # insights page
 from datetime import datetime, timedelta

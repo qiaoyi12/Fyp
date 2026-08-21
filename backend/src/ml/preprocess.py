@@ -1,16 +1,6 @@
 import pandas as pd
 import numpy as np
 
-# SELECTED_FEATURES = [
-#     'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
-#     'Total Length of Fwd Packets', 'Total Length of Bwd Packets',
-#     'Flow Bytes/s', 'Flow Packets/s', 'Flow IAT Mean', 'Flow IAT Std',
-#     'Fwd IAT Mean', 'Bwd IAT Mean', 'Packet Length Mean', 'Packet Length Std',
-#     'Destination Port', 'Average Packet Size', 'Fwd Packet Length Mean',
-#     'Bwd Packet Length Mean', 'Fwd Packets/s', 'Bwd Packets/s',
-#     'SYN Flag Count', 'ACK Flag Count', 'PSH Flag Count',
-#     'Init_Win_bytes_forward', 'Init_Win_bytes_backward'
-# ]
 
 SELECTED_FEATURES = [
     'Packet Length Mean', 'Average Packet Size', 'Bwd Packet Length Max',
