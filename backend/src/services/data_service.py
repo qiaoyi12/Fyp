@@ -71,7 +71,11 @@ def get_dashboard_data(user_id, role, attack_type='all'):
 
     latest = _analysis_query(user_id, role)\
         .order_by(AnalysisResult.analysed_at.desc()).first()
-
+    # ADD THIS — separate query just for best accuracy
+    top_accuracy_result = _analysis_query(user_id, role)\
+        .order_by(AnalysisResult.model_accuracy.desc()).first()
+    top_accuracy = top_accuracy_result.model_accuracy if top_accuracy_result else None
+    
     if not latest:
         return high_alerts, [], _empty_metrics()
 
@@ -338,9 +342,6 @@ def run_analysis(file_ids, user_id):
     print(f"[TIMING] alert+detail insert loop: {time.time()-t0:.2f}s")  # ADD
 
     db.session.commit()
-
-    from agenticAI.assignment_agent import run_assignment_for_batch  # local import avoids circular import
-    run_assignment_for_batch(record.id)
 
     return record, None, metrics
 
